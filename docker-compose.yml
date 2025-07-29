@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    container_name: shopify-api-app
+    env_file:
+      - .env
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+    # Uncomment below if you want to mount code for live reload in dev
+    # volumes:
+    #   - ./:/app 

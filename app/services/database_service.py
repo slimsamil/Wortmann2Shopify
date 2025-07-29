@@ -1,0 +1,90 @@
+from typing import List, Dict, Any
+from app.core.database import db_manager
+from app.models.product import ProductBase, ImageBase, WarrantyBase
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+class DatabaseService:
+    def __init__(self):
+        self.db_manager = db_manager
+    
+    def fetch_products(self, limit: int = None) -> List[Dict[str, Any]]:
+        """Fetch products from WortmannProdukte table"""
+        try:
+            with self.db_manager.get_connection() as conn:
+                cursor = conn.cursor()
+                if limit is not None:
+                    cursor.execute(f"SELECT TOP({limit}) * FROM WortmannProdukte")
+                else:
+                    cursor.execute("SELECT * FROM WortmannProdukte")
+                
+                columns = [column[0] for column in cursor.description]
+                products = []
+                
+                for row in cursor.fetchall():
+                    product_dict = {}
+                    for i, value in enumerate(row):
+                        product_dict[columns[i]] = value
+                    products.append(product_dict)
+                
+                logger.info(f"Fetched {len(products)} products from database")
+                return products
+        except Exception as e:
+            logger.error(f"Error fetching products: {str(e)}")
+            raise
+    
+    def fetch_images(self, limit: int = None) -> List[Dict[str, Any]]:
+        """Fetch images from BilderShopify table"""
+        try:
+            with self.db_manager.get_connection() as conn:
+                cursor = conn.cursor()
+                if limit is not None:
+                    cursor.execute(f"SELECT TOP({limit}) * FROM BilderShopify")
+                else:
+                    cursor.execute("SELECT * FROM BilderShopify")
+                
+                columns = [column[0] for column in cursor.description]
+                images = []
+                
+                for row in cursor.fetchall():
+                    image_dict = {}
+                    for i, value in enumerate(row):
+                        image_dict[columns[i]] = value
+                    images.append(image_dict)
+                
+                logger.info(f"Fetched {len(images)} images from database")
+                return images
+        except Exception as e:
+            logger.error(f"Error fetching images: {str(e)}")
+            raise
+    
+    def fetch_warranties(self) -> List[Dict[str, Any]]:
+        """Fetch warranties from GarantieOptionen table"""
+        try:
+            with self.db_manager.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT * FROM GarantieOptionen")
+                
+                columns = [column[0] for column in cursor.description]
+                warranties = []
+                
+                for row in cursor.fetchall():
+                    warranty_dict = {}
+                    for i, value in enumerate(row):
+                        warranty_dict[columns[i]] = value
+                    warranties.append(warranty_dict)
+                
+                logger.info(f"Fetched {len(warranties)} warranties from database")
+                return warranties
+        except Exception as e:
+            logger.error(f"Error fetching warranties: {str(e)}")
+            raise
+    
+    def test_connection(self) -> bool:
+        """Test database connection"""
+        return self.db_manager.test_connection()
+
+
+database_service = DatabaseService()
