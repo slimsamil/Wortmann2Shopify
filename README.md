@@ -21,7 +21,7 @@ cd shopify_api
 ### 2. Virtuelle Umgebung erstellen
 
 ```bash
-python -m pip install venv
+python -m pip install virtualenv
 python -m venv venv
 ```
 
