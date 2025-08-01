@@ -1,13 +1,14 @@
 from fastapi import APIRouter, Depends, HTTPException
-from app.models.product import WorkflowRequest, WorkflowResponse
 from app.services.database_service import DatabaseService
 from app.services.product_service import ProductService
 from app.services.shopify_service import ShopifyService
 from app.api.deps import get_database_service, get_product_service, get_shopify_service
+from app.models.product import WorkflowRequest, WorkflowResponse
 import time
 import logging
 
 logger = logging.getLogger(__name__)
+
 router = APIRouter()
 
 
@@ -76,7 +77,8 @@ async def execute_workflow(
     
     except Exception as e:
         logger.error(f"Workflow execution failed: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Workflow execution failed: {str(e)}")
+        raise HTTPException(status_code=500,
+                          detail=f"Workflow execution failed: {str(e)}")
 
 
 @router.post("/test-workflow", response_model=WorkflowResponse)
@@ -86,27 +88,27 @@ async def test_workflow(
     product_service: ProductService = Depends(get_product_service),
     shopify_service: ShopifyService = Depends(get_shopify_service)
 ):
-    """Test the workflow with only the first 10 products"""
+    """Execute workflow with only test data (products with TEST prefix)"""
     start_time = time.time()
     
     try:
         logger.info(f"Starting test workflow execution with params: {request.dict()}")
         
-        # Step 1: Fetch data from databases (limit to 10 products)
-        logger.info("Fetching first 10 products from databases...")
-        products = db_service.fetch_products(10)
-        images = db_service.fetch_images(10)
-        warranties = db_service.fetch_warranties(10)
+        # Step 1: Fetch only test data from databases
+        logger.info("Fetching test data from databases...")
+        products = db_service.fetch_test_products(limit=request.product_limit or 10)
+        images = db_service.fetch_test_images(limit=request.image_limit or 10)
+        warranties = db_service.fetch_warranties()
         
         if not products:
-            raise HTTPException(status_code=404, detail="No products found in database")
+            raise HTTPException(status_code=404, detail="No test products found in database. Run the test data script first.")
         
         # Step 2: Merge data
-        logger.info("Merging data...")
+        logger.info("Merging test data...")
         merged_items = product_service.merge_data(products, images, warranties)
         
         # Step 3: Process into Shopify format
-        logger.info("Processing products for Shopify...")
+        logger.info("Processing test products for Shopify...")
         shopify_products = product_service.process_products(merged_items)
         
         execution_time = time.time() - start_time
@@ -115,12 +117,13 @@ async def test_workflow(
         if request.dry_run:
             return WorkflowResponse(
                 status="success",
-                message="Test dry run completed successfully",
+                message="Test workflow dry run completed successfully",
                 total_products=len(shopify_products),
                 execution_time=execution_time,
                 results=[{
-                    "sample_product_count": len(shopify_products),
-                    "sample_product_handle": shopify_products[0].product.handle if shopify_products else None
+                    "test_products": len(shopify_products),
+                    "sample_product_handle": shopify_products[0].product.handle if shopify_products else None,
+                    "product_ids": [p.product.handle for p in shopify_products[:5]]  # Show first 5 handles
                 }]
             )
         else:
@@ -144,7 +147,8 @@ async def test_workflow(
     
     except Exception as e:
         logger.error(f"Test workflow execution failed: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Test workflow execution failed: {str(e)}")
+        raise HTTPException(status_code=500,
+                          detail=f"Test workflow execution failed: {str(e)}")
 
 
 @router.post("/sync-products", response_model=WorkflowResponse)
@@ -154,121 +158,33 @@ async def sync_products(
     product_service: ProductService = Depends(get_product_service),
     shopify_service: ShopifyService = Depends(get_shopify_service)
 ):
-    """Sync products between database and Shopify - detect and update changes"""
+    """Sync products between database and Shopify"""
     start_time = time.time()
     
     try:
         logger.info(f"Starting product sync with params: {request.dict()}")
         
-        # Step 1: Fetch data from databases
-        logger.info("Fetching data from databases...")
-        products = db_service.fetch_products()
-        images = db_service.fetch_images()
-        warranties = db_service.fetch_warranties()
-        
-        if not products:
-            raise HTTPException(status_code=404, detail="No products found in database")
-        
-        # Step 2: Fetch all products from Shopify
-        logger.info("Fetching products from Shopify...")
+        # Fetch data from both sources
+        db_products = db_service.fetch_products()
         shopify_products = await shopify_service.fetch_all_products()
         
-        # Step 3: Compare and analyze changes
-        logger.info("Comparing database and Shopify products...")
-        sync_analysis = await shopify_service.compare_and_update_products(products, shopify_products)
+        if not db_products:
+            raise HTTPException(status_code=404, detail="No products found in database")
+        
+        # Compare and update
+        sync_results = await shopify_service.compare_and_update_products(db_products, shopify_products)
         
         execution_time = time.time() - start_time
         
-        # Step 4: Process results
-        if request.dry_run:
-            return WorkflowResponse(
-                status="success",
-                message="Sync analysis completed (dry run)",
-                total_products=len(products),
-                execution_time=execution_time,
-                results=[{
-                    "sync_analysis": sync_analysis,
-                    "summary": {
-                        "total_db_products": len(products),
-                        "total_shopify_products": len(shopify_products),
-                        "products_to_update": len(sync_analysis['products_to_update']),
-                        "products_to_create": len(sync_analysis['products_to_create']),
-                        "unchanged_products": len(sync_analysis['unchanged_products']),
-                        "shopify_only_products": len(sync_analysis['shopify_only_products'])
-                    }
-                }]
-            )
-        else:
-            # Step 5: Update changed products
-            logger.info(f"Updating {len(sync_analysis['products_to_update'])} changed products...")
-            update_results = []
-            
-            for item in sync_analysis['products_to_update']:
-                handle = item['handle']
-                db_product = item['db_product']
-                shopify_product = item['shopify_product']
-                
-                # Process the database product into Shopify format
-                merged_items = product_service.merge_data([db_product], images, warranties)
-                shopify_products_list = product_service.process_products(merged_items)
-                
-                if shopify_products_list:
-                    shopify_product_data = shopify_products_list[0].product.model_dump()
-                    shopify_id = shopify_product.get('id')
-                    
-                    if shopify_id:
-                        result = await shopify_service.update_product(shopify_id, shopify_product_data)
-                        update_results.append(result)
-                    else:
-                        update_results.append({
-                            'status': 'error',
-                            'product_id': handle,
-                            'error': 'Shopify product ID not found'
-                        })
-            
-            # Step 6: Create new products
-            logger.info(f"Creating {len(sync_analysis['products_to_create'])} new products...")
-            create_results = []
-            
-            for item in sync_analysis['products_to_create']:
-                db_product = item['db_product']
-                
-                # Process the database product into Shopify format
-                merged_items = product_service.merge_data([db_product], images, warranties)
-                shopify_products_list = product_service.process_products(merged_items)
-                
-                if shopify_products_list:
-                    create_results.extend(await shopify_service.send_products_batch(shopify_products_list, 1))
-            
-            # Combine results
-            all_results = update_results + create_results
-            success_count = sum(1 for r in all_results if isinstance(r, dict) and r.get('status') == 'success')
-            error_count = len(all_results) - success_count
-            
-            execution_time = time.time() - start_time
-            
-            return WorkflowResponse(
-                status="completed",
-                message=f"Sync completed. {success_count} successful, {error_count} failed",
-                total_products=len(products),
-                successful_uploads=success_count,
-                failed_uploads=error_count,
-                execution_time=execution_time,
-                results=[{
-                    "sync_analysis": sync_analysis,
-                    "update_results": update_results,
-                    "create_results": create_results,
-                    "summary": {
-                        "total_db_products": len(products),
-                        "total_shopify_products": len(shopify_products),
-                        "products_updated": len(update_results),
-                        "products_created": len(create_results),
-                        "unchanged_products": len(sync_analysis['unchanged_products']),
-                        "shopify_only_products": len(sync_analysis['shopify_only_products'])
-                    }
-                }]
-            )
+        return WorkflowResponse(
+            status="completed",
+            message="Product sync completed",
+            total_products=len(db_products),
+            execution_time=execution_time,
+            results=[sync_results]
+        )
     
     except Exception as e:
         logger.error(f"Product sync failed: {str(e)}")
-        raise HTTPException(status_code=500, detail=f"Product sync failed: {str(e)}")
+        raise HTTPException(status_code=500,
+                          detail=f"Product sync failed: {str(e)}")

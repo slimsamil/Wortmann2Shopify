@@ -93,6 +93,104 @@ class ShopifyService:
             logger.error(f"Error fetching product {handle}: {str(e)}")
             return None
     
+    async def update_products_by_product_ids(self, product_ids: List[str]) -> List[Dict[str, Any]]:
+        """Update multiple products in Shopify by their productIds, fetching data from database"""
+        try:
+            from app.services.database_service import DatabaseService
+            from app.services.product_service import ProductService
+            
+            # Initialize services
+            db_service = DatabaseService()
+            product_service = ProductService()
+            
+            # Fetch all product data from database
+            products = db_service.fetch_products()
+            images = db_service.fetch_images()
+            warranties = db_service.fetch_warranties()
+            
+            # Create lookup for products by ProductId
+            products_by_id = {product.get('ProductId'): product for product in products}
+            
+            results = []
+            
+            for product_id in product_ids:
+                try:
+                    # Find the specific product
+                    target_product = products_by_id.get(product_id)
+                    
+                    if not target_product:
+                        results.append({
+                            'status': 'error',
+                            'product_id': product_id,
+                            'error': f'Product with ID "{product_id}" not found in database'
+                        })
+                        continue
+                    
+                    # Merge data for this product
+                    merged_items = product_service.merge_data([target_product], images, warranties)
+                    
+                    # Process into Shopify format
+                    shopify_products = product_service.process_products(merged_items)
+                    
+                    if not shopify_products:
+                        results.append({
+                            'status': 'error',
+                            'product_id': product_id,
+                            'error': 'Failed to process product data for Shopify'
+                        })
+                        continue
+                    
+                    # Get the processed Shopify product data
+                    shopify_product_data = shopify_products[0].product.model_dump()
+                    
+                    # Construct the handle format used in this system
+                    handle = f"prod-{product_id}"
+                    
+                    # Update the product in Shopify
+                    async with httpx.AsyncClient() as client:
+                        response = await client.put(
+                            f"{self.shop_url}/admin/api/2023-10/products.json?handle={handle}",
+                            headers=self.headers,
+                            json={"product": shopify_product_data},
+                            timeout=30.0
+                        )
+                        
+                        if response.status_code == 200:
+                            results.append({
+                                'status': 'success',
+                                'product_id': product_id,
+                                'handle': handle,
+                                'title': shopify_product_data.get('title')
+                            })
+                        else:
+                            results.append({
+                                'status': 'error',
+                                'product_id': product_id,
+                                'error': response.text,
+                                'status_code': response.status_code
+                            })
+                    
+                    # Rate limiting - wait a bit between requests
+                    await asyncio.sleep(0.5)
+                    
+                except Exception as e:
+                    logger.error(f"Error updating product {product_id}: {str(e)}")
+                    results.append({
+                        'status': 'error',
+                        'product_id': product_id,
+                        'error': str(e)
+                    })
+            
+            return results
+                    
+        except Exception as e:
+            logger.error(f"Error in batch product update: {str(e)}")
+            return [{
+                'status': 'error',
+                'product_id': 'batch',
+                'error': str(e)
+            }]
+    
     async def update_product(self, shopify_id: int, product_data: Dict[str, Any]) -> Dict[str, Any]:
         """Update an existing product in Shopify"""
         try:

@@ -132,9 +132,32 @@ docker-compose up
 docker-compose up -d
 ```
 
+## 🧪 Test Data Setup
+
+Before testing the API, you can populate your database with test data:
+
+### 1. Insert Test Data
+```bash
+# Run the test data insertion script
+python run_test_data.py
+```
+
+This will create 10 test products with the following structure:
+- **Product IDs**: TEST001-TEST010
+- **Categories**: Electronics, Gaming, Monitors, etc.
+- **Prices**: €39.99 - €1,299.99
+- **Warranties**: 12-60 months with different pricing
+- **Images**: Simple 1x1 pixel PNG images (base64 encoded)
+
+### 2. Verify Test Data
+```bash
+# Check if test data was inserted
+curl -X GET http://localhost:8000/health
+```
+
 ## 📡 API Endpoints
 
-### 1. Workflow ausführen
+### 1. Workflow ausführen (All Products)
 ```bash
 POST /execute-workflow
 {
@@ -143,7 +166,7 @@ POST /execute-workflow
 }
 ```
 
-### 2. Test Workflow (nur 10 Produkte)
+### 2. Test Workflow (Test Data Only)
 ```bash
 POST /test-workflow
 {
@@ -151,6 +174,8 @@ POST /test-workflow
   "batch_size": 5
 }
 ```
+
+**Safe for testing**: This endpoint only processes products with `TEST` prefix.
 
 ### 3. Produkte synchronisieren (NEU!)
 ```bash
@@ -218,6 +243,68 @@ GET /health
 **Lösung:**
 - Der Code wurde bereits aktualisiert, um diesen Fehler zu verhindern
 - Stellen Sie sicher, dass Sie die neueste Version verwenden
+
+## 🧪 Testing the Update Function
+
+### 1. Dry Run Test (Recommended First Step)
+```bash
+# Test with dry run to see what would be processed
+curl -X POST http://localhost:8000/test-workflow \
+  -H "Content-Type: application/json" \
+  -d '{
+    "dry_run": true,
+    "batch_size": 5,
+    "product_limit": 10
+  }'
+```
+
+**Expected Response:**
+```json
+{
+  "status": "success",
+  "message": "Test workflow dry run completed successfully",
+  "total_products": 10,
+  "execution_time": 1.23,
+  "results": [{
+    "test_products": 10,
+    "sample_product_handle": "prod-TEST001",
+    "product_ids": ["prod-TEST001", "prod-TEST002", "prod-TEST003", "prod-TEST004", "prod-TEST005"]
+  }]
+}
+```
+
+### 2. Live Test (Actual Shopify Upload)
+```bash
+# Test with actual upload to Shopify
+curl -X POST http://localhost:8000/test-workflow \
+  -H "Content-Type: application/json" \
+  -d '{
+    "dry_run": false,
+    "batch_size": 2
+  }'
+```
+
+**Expected Response:**
+```json
+{
+  "status": "completed",
+  "message": "Test workflow completed. 10 successful, 0 failed",
+  "total_products": 10,
+  "successful_uploads": 10,
+  "failed_uploads": 0,
+  "execution_time": 15.67,
+  "results": [...]
+}
+```
+
+### 3. Monitor Progress
+```bash
+# Watch the logs in real-time
+docker-compose logs -f app
+
+# Check health status
+curl -X GET http://localhost:8000/health
+```
 
 ## 📊 Monitoring
 
