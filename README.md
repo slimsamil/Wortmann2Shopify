@@ -132,59 +132,123 @@ docker-compose up
 docker-compose up -d
 ```
 
-## 🧪 Test Data Setup
+## 📡 API Endpunkte
 
-Before testing the API, you can populate your database with test data:
+### Workflow Endpunkte
 
-### 1. Insert Test Data
-```bash
-# Run the test data insertion script
-python run_test_data.py
+#### 1. Produkte nach IDs synchronisieren
+**POST** `/api/v1/workflow/sync-products-by-ids`
+
+Synchronisiert mehrere Produkte anhand ihrer IDs zwischen Datenbank und Shopify.
+
+**Parameter:**
+```json
+{
+  "product_ids": ["eu1009805", "eu1009806"],
+  "dry_run": false,
+  "create_if_missing": true,
+  "batch_size": 10
+}
 ```
 
-This will create 10 test products with the following structure:
-- **Product IDs**: TEST001-TEST010
-- **Categories**: Electronics, Gaming, Monitors, etc.
-- **Prices**: €39.99 - €1,299.99
-- **Warranties**: 12-60 months with different pricing
-- **Images**: Simple 1x1 pixel PNG images (base64 encoded)
+**Funktionen:**
+- Lädt spezifische Produkte aus der Datenbank
+- Transformiert sie in Shopify REST API Format
+- Aktualisiert sie in Shopify via PUT Requests
+- Behandelt sowohl bestehende (Updates) als auch neue Produkte (Erstellt)
+- Batch-Verarbeitung mit Rate Limiting
 
-### 2. Verify Test Data
-```bash
-# Check if test data was inserted
-curl -X GET http://localhost:8000/health
+**Antwort:**
+```json
+{
+  "status": "completed",
+  "message": "Sync completed: 8 successful, 2 failed",
+  "total_products": 10,
+  "successful_uploads": 8,
+  "failed_uploads": 2,
+  "execution_time": 15.67,
+  "results": [...]
+}
 ```
 
-## 📡 API Endpoints
+#### 2. Einzelnes Produkt synchronisieren
+**POST** `/api/v1/workflow/sync-single-product`
 
-### 1. Workflow ausführen (All Products)
-```bash
-POST /execute-workflow
+Synchronisiert ein einzelnes Produkt zwischen Datenbank und Shopify.
+
+**Parameter:**
+```json
+{
+  "product_id": "eu1009805",
+  "dry_run": false,
+  "create_if_missing": true
+}
+```
+
+**Funktionen:**
+- Lädt das spezifische Produkt aus der Datenbank
+- Prüft, ob es in Shopify existiert
+- Vergleicht die Daten und erkennt Änderungen
+- Aktualisiert oder erstellt das Produkt in Shopify
+
+**Antwort:**
+```json
+{
+  "status": "completed",
+  "message": "Product eu1009805 updated successfully",
+  "total_products": 1,
+  "successful_uploads": 1,
+  "failed_uploads": 0,
+  "execution_time": 2.34,
+  "results": [...]
+}
+```
+
+#### 3. Workflow ausführen
+**POST** `/api/v1/workflow/execute-workflow`
+
+Führt den kompletten Workflow für alle Produkte aus.
+
+**Parameter:**
+```json
 {
   "dry_run": false,
-  "batch_size": 10
+  "batch_size": 20,
+  "product_limit": null,
+  "image_limit": null
 }
 ```
 
-### 2. Test Workflow (Test Data Only)
-```bash
-POST /test-workflow
+**Funktionen:**
+- Lädt alle Produkte, Bilder und Garantien aus der Datenbank
+- Führt Daten-Merging durch
+- Verarbeitet Produkte in Shopify-Format
+- Sendet Produkte in Batches an Shopify
+
+#### 4. Produkte synchronisieren
+**POST** `/api/v1/workflow/sync-products`
+
+Synchronisiert Produkte zwischen Datenbank und Shopify mit Vergleich.
+
+**Parameter:**
+```json
 {
-  "dry_run": true,
-  "batch_size": 5
+  "dry_run": false,
+  "batch_size": 20
 }
 ```
 
-**Safe for testing**: This endpoint only processes products with `TEST` prefix.
+**Funktionen:**
+- Lädt Produkte aus beiden Quellen (Datenbank und Shopify)
+- Vergleicht und aktualisiert nur geänderte Produkte
+- Erstellt neue Produkte, die in Shopify fehlen
 
-### 3. Produkte synchronisieren (NEU!)
-```bash
-POST /sync-products
-{
-  "dry_run": true,
-  "batch_size": 10
-}
-```
+### Health Check
+**GET** `/health`
+
+Prüft den Status der API und Datenbankverbindung.
+
+## 🔄 Sync-Funktionalität
 
 **Was macht die Sync-Funktion:**
 - Vergleicht Produkte zwischen Datenbank und Shopify
@@ -209,11 +273,6 @@ POST /sync-products
     }
   }]
 }
-```
-
-### 4. Health Check
-```bash
-GET /health
 ```
 
 ## 🔍 Fehlerbehebung
@@ -249,7 +308,7 @@ GET /health
 ### 1. Dry Run Test (Recommended First Step)
 ```bash
 # Test with dry run to see what would be processed
-curl -X POST http://localhost:8000/test-workflow \
+curl -X POST http://localhost:8000/api/v1/workflow/test-workflow \
   -H "Content-Type: application/json" \
   -d '{
     "dry_run": true,
@@ -276,7 +335,7 @@ curl -X POST http://localhost:8000/test-workflow \
 ### 2. Live Test (Actual Shopify Upload)
 ```bash
 # Test with actual upload to Shopify
-curl -X POST http://localhost:8000/test-workflow \
+curl -X POST http://localhost:8000/api/v1/workflow/test-workflow \
   -H "Content-Type: application/json" \
   -d '{
     "dry_run": false,

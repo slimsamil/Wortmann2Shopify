@@ -225,6 +225,67 @@ class ShopifyService:
                 'error': str(e)
             }
     
+    async def update_product_by_handle(self, handle: str, product_data: Dict[str, Any]) -> Dict[str, Any]:
+        """Update a product in Shopify by handle using PUT request"""
+        try:
+            # First get the product to get its ID
+            existing_product = await self.get_product_by_handle(handle)
+            if not existing_product:
+                return {"status": "error", "message": f"Product with handle '{handle}' not found in Shopify"}
+            
+            product_id = existing_product['id']
+            
+            # Prepare the product data for Shopify API
+            shopify_product_data = {
+                "product": {
+                    "title": product_data.get('title'),
+                    "body_html": product_data.get('body_html'),
+                    "vendor": product_data.get('vendor'),
+                    "product_type": product_data.get('product_type'),
+                    "tags": product_data.get('tags'),
+                    "variants": product_data.get('variants', []),
+                    "options": product_data.get('options', []),
+                    "metafields": product_data.get('metafields', [])
+                }
+            }
+            
+            # Add images if present
+            if product_data.get('images'):
+                shopify_product_data["product"]["images"] = product_data['images']
+            
+            async with httpx.AsyncClient() as client:
+                response = await client.put(
+                    f"{self.shop_url}/admin/api/2023-10/products/{product_id}.json",
+                    headers=self.headers,
+                    json=shopify_product_data,
+                    timeout=30.0
+                )
+                
+                if response.status_code == 200:
+                    updated_product = response.json()
+                    logger.info(f"Successfully updated product {handle} in Shopify")
+                    return {
+                        "status": "success",
+                        "message": f"Product {handle} updated successfully",
+                        "product_id": product_id,
+                        "handle": handle,
+                        "data": updated_product
+                    }
+                else:
+                    logger.error(f"Failed to update product {handle}: {response.status_code} - {response.text}")
+                    return {
+                        "status": "error",
+                        "message": f"Failed to update product {handle}: {response.status_code}",
+                        "response": response.text
+                    }
+                    
+        except Exception as e:
+            logger.error(f"Error updating product {handle}: {str(e)}")
+            return {
+                "status": "error",
+                "message": f"Error updating product {handle}: {str(e)}"
+            }
+    
     async def compare_and_update_products(self, db_products: List[Dict], shopify_products: List[Dict]) -> Dict[str, Any]:
         """Compare database products with Shopify products and update changes"""
         try:

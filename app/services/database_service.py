@@ -1,4 +1,4 @@
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from app.core.database import db_manager
 from app.models.product import ProductBase, ImageBase, WarrantyBase
 import logging
@@ -33,6 +33,31 @@ class DatabaseService:
                 return products
         except Exception as e:
             logger.error(f"Error fetching products: {str(e)}")
+            raise
+    
+    def fetch_product_by_id(self, product_id: str) -> Optional[Dict[str, Any]]:
+        """Fetch a single product by ProductId"""
+        try:
+            with self.db_manager.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT * FROM WortmannProdukte WHERE ProductId = ?", (product_id,))
+                
+                columns = [column[0] for column in cursor.description]
+                row = cursor.fetchone()
+                
+                if row:
+                    product_dict = {}
+                    for i, value in enumerate(row):
+                        product_dict[columns[i]] = value
+                    
+                    logger.info(f"Fetched product {product_id} from database")
+                    return product_dict
+                else:
+                    logger.warning(f"Product {product_id} not found in database")
+                    return None
+                    
+        except Exception as e:
+            logger.error(f"Error fetching product {product_id}: {str(e)}")
             raise
     
     def fetch_test_products(self, limit: int = None) -> List[Dict[str, Any]]:
@@ -83,6 +108,28 @@ class DatabaseService:
                 return images
         except Exception as e:
             logger.error(f"Error fetching images: {str(e)}")
+            raise
+    
+    def fetch_images_by_product_id(self, product_id: str) -> List[Dict[str, Any]]:
+        """Fetch images for a specific product ID from BilderShopify table"""
+        try:
+            with self.db_manager.get_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT * FROM BilderShopify WHERE supplier_aid = ?", (product_id,))
+                
+                columns = [column[0] for column in cursor.description]
+                images = []
+                
+                for row in cursor.fetchall():
+                    image_dict = {}
+                    for i, value in enumerate(row):
+                        image_dict[columns[i]] = value
+                    images.append(image_dict)
+                
+                logger.info(f"Fetched {len(images)} images for product {product_id} from database")
+                return images
+        except Exception as e:
+            logger.error(f"Error fetching images for product {product_id}: {str(e)}")
             raise
     
     def fetch_test_images(self, limit: int = None) -> List[Dict[str, Any]]:
