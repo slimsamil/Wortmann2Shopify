@@ -1,31 +1,31 @@
-# Shopify API - Produkt-Upload System
+# Shopify API - Product Upload System
 
-Dieses Projekt ermöglicht es, Produkte aus einer Microsoft SQL Server Datenbank in Shopify zu importieren. Es verwendet FastAPI für die API und unterstützt Batch-Uploads von Produkten mit Bildern und Garantien.
+This project enables importing products from a Microsoft SQL Server database into Shopify. It uses FastAPI for the API and supports batch uploads of products with images and warranties.
 
-## 📋 Voraussetzungen
+## 📋 Prerequisites
 
-- Python 3.11 oder höher
-- Microsoft SQL Server (lokal oder remote)
-- Shopify Partner Account oder Custom App
+- Python 3.11 or higher
+- Microsoft SQL Server (local or remote)
+- Shopify Partner Account or Custom App
 - Git
 
 ## 🚀 Installation
 
-### 1. Repository klonen
+### 1. Clone repository
 
 ```bash
 git clone <repository-url>
 cd shopify_api
 ```
 
-### 2. Virtuelle Umgebung erstellen
+### 2. Create virtual environment
 
 ```bash
 python -m pip install virtualenv
 python -m venv venv
 ```
 
-### 3. Virtuelle Umgebung aktivieren
+### 3. Activate virtual environment
 
 **Windows:**
 ```bash
@@ -37,7 +37,7 @@ python -m venv venv
 source venv/bin/activate
 ```
 
-### 4. Abhängigkeiten installieren
+### 4. Install dependencies
 
 ```bash
 pip install -r requirements.txt
@@ -46,21 +46,21 @@ pip install -r requirements.txt
 ## 🔧 MSSQL Driver Installation
 
 ### Windows
-1. Laden Sie den **Microsoft ODBC Driver 18 for SQL Server** von der Microsoft Website herunter
-2. Führen Sie die Installation aus
-3. Überprüfen Sie die Installation:
+1. Download the **Microsoft ODBC Driver 18 for SQL Server** from the Microsoft website
+2. Run the installation
+3. Verify the installation:
    ```bash
    odbcad32.exe
    ```
 
 ### Linux (Ubuntu/Debian)
 ```bash
-# Docker (empfohlen)
+# Docker (recommended)
 docker run -e "ACCEPT_EULA=Y" -e "MSSQL_SA_PASSWORD=YourPassword123!" \
   -p 1433:1433 --name sql1 --hostname sql1 \
   -d mcr.microsoft.com/mssql/server:2022-latest
 
-# Oder lokale Installation
+# Or local installation
 curl https://packages.microsoft.com/keys/microsoft.asc | apt-key add -
 curl https://packages.microsoft.com/config/ubuntu/20.04/prod.list > /etc/apt/sources.list.d/mssql-release.list
 apt-get update
@@ -74,11 +74,11 @@ brew update
 ACCEPT_EULA=Y brew install msodbcsql18
 ```
 
-## ⚙️ Konfiguration
+## ⚙️ Configuration
 
-### 1. .env Datei erstellen
+### 1. Create .env file
 
-Erstellen Sie eine `.env` Datei im Projektverzeichnis:
+Create a `.env` file in the project directory:
 
 ```env
 # Database settings
@@ -98,50 +98,50 @@ API_PORT=8000
 DEBUG=true
 ```
 
-### 2. Shopify Access Token erhalten
+### 2. Get Shopify Access Token
 
-1. Gehen Sie zu Ihrem Shopify Admin Panel
-2. Apps → App und Verkaufskanäle verwalten
-3. Private Apps → Neue private App erstellen
-4. Notieren Sie sich den Access Token
+1. Go to your Shopify Admin Panel
+2. Apps → Manage apps and sales channels
+3. Private Apps → Create new private app
+4. Note down the Access Token
 
-### 3. Datenbank-Verbindung testen
+### 3. Test database connection
 
 ```bash
 python -c "from app.core.database import db_manager; print('Connection successful' if db_manager.test_connection() else 'Connection failed')"
 ```
 
-## 🚀 Verwendung
+## 🚀 Usage
 
-### Entwicklungsserver starten
+### Start development server
 
 ```bash
 uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-### Mit Docker
+### With Docker
 
 ```bash
-# Build und starten
+# Build and start
 docker-compose up --build
 
-# Nur starten
+# Start only
 docker-compose up
 
-# Im Hintergrund
+# In background
 docker-compose up -d
 ```
 
-## 📡 API Endpunkte
+## 📡 API Endpoints
 
-### Workflow Endpunkte
+### Workflow Endpoints
 
-#### 1. Produkte nach IDs synchronisieren
+#### 1. Sync Products by IDs
 **POST** `/api/v1/workflow/sync-products-by-ids`
 
-Synchronisiert mehrere Produkte anhand ihrer IDs zwischen Datenbank und Shopify.
+Synchronizes multiple products by their IDs between database and Shopify.
 
-**Parameter:**
+**Parameters:**
 ```json
 {
   "product_ids": ["eu1009805", "eu1009806"],
@@ -151,14 +151,14 @@ Synchronisiert mehrere Produkte anhand ihrer IDs zwischen Datenbank und Shopify.
 }
 ```
 
-**Funktionen:**
-- Lädt spezifische Produkte aus der Datenbank
-- Transformiert sie in Shopify REST API Format
-- Aktualisiert sie in Shopify via PUT Requests
-- Behandelt sowohl bestehende (Updates) als auch neue Produkte (Erstellt)
-- Batch-Verarbeitung mit Rate Limiting
+**Functions:**
+- Loads specific products from database
+- Transforms them to Shopify REST API format
+- Updates them in Shopify via PUT requests
+- Handles both existing (updates) and new products (creates)
+- Batch processing with rate limiting
 
-**Antwort:**
+**Response:**
 ```json
 {
   "status": "completed",
@@ -171,12 +171,12 @@ Synchronisiert mehrere Produkte anhand ihrer IDs zwischen Datenbank und Shopify.
 }
 ```
 
-#### 2. Einzelnes Produkt synchronisieren
+#### 2. Sync Single Product
 **POST** `/api/v1/workflow/sync-single-product`
 
-Synchronisiert ein einzelnes Produkt zwischen Datenbank und Shopify.
+Synchronizes a single product between database and Shopify.
 
-**Parameter:**
+**Parameters:**
 ```json
 {
   "product_id": "eu1009805",
@@ -185,13 +185,13 @@ Synchronisiert ein einzelnes Produkt zwischen Datenbank und Shopify.
 }
 ```
 
-**Funktionen:**
-- Lädt das spezifische Produkt aus der Datenbank
-- Prüft, ob es in Shopify existiert
-- Vergleicht die Daten und erkennt Änderungen
-- Aktualisiert oder erstellt das Produkt in Shopify
+**Functions:**
+- Loads the specific product from database
+- Checks if it exists in Shopify
+- Compares data and detects changes
+- Updates or creates the product in Shopify
 
-**Antwort:**
+**Response:**
 ```json
 {
   "status": "completed",
@@ -204,12 +204,12 @@ Synchronisiert ein einzelnes Produkt zwischen Datenbank und Shopify.
 }
 ```
 
-#### 3. Workflow ausführen
+#### 3. Execute Workflow
 **POST** `/api/v1/workflow/execute-workflow`
 
-Führt den kompletten Workflow für alle Produkte aus.
+Executes the complete workflow for all products.
 
-**Parameter:**
+**Parameters:**
 ```json
 {
   "dry_run": false,
@@ -219,18 +219,18 @@ Führt den kompletten Workflow für alle Produkte aus.
 }
 ```
 
-**Funktionen:**
-- Lädt alle Produkte, Bilder und Garantien aus der Datenbank
-- Führt Daten-Merging durch
-- Verarbeitet Produkte in Shopify-Format
-- Sendet Produkte in Batches an Shopify
+**Functions:**
+- Loads all products, images and warranties from database
+- Performs data merging
+- Processes products into Shopify format
+- Sends products in batches to Shopify
 
-#### 4. Produkte synchronisieren
+#### 4. Sync Products
 **POST** `/api/v1/workflow/sync-products`
 
-Synchronisiert Produkte zwischen Datenbank und Shopify mit Vergleich.
+Synchronizes products between database and Shopify with comparison.
 
-**Parameter:**
+**Parameters:**
 ```json
 {
   "dry_run": false,
@@ -238,26 +238,26 @@ Synchronisiert Produkte zwischen Datenbank und Shopify mit Vergleich.
 }
 ```
 
-**Funktionen:**
-- Lädt Produkte aus beiden Quellen (Datenbank und Shopify)
-- Vergleicht und aktualisiert nur geänderte Produkte
-- Erstellt neue Produkte, die in Shopify fehlen
+**Functions:**
+- Loads products from both sources (database and Shopify)
+- Compares and updates only changed products
+- Creates new products that are missing in Shopify
 
 ### Health Check
 **GET** `/health`
 
-Prüft den Status der API und Datenbankverbindung.
+Checks the status of the API and database connection.
 
-## 🔄 Sync-Funktionalität
+## 🔄 Sync Functionality
 
-**Was macht die Sync-Funktion:**
-- Vergleicht Produkte zwischen Datenbank und Shopify
-- Erkennt geänderte Produkte (Preis, Lagerbestand, Beschreibung, etc.)
-- Aktualisiert nur geänderte Produkte
-- Erstellt neue Produkte, die in Shopify fehlen
-- Zeigt eine detaillierte Analyse der Änderungen
+**What the sync function does:**
+- Compares products between database and Shopify
+- Detects changed products (price, stock, description, etc.)
+- Updates only changed products
+- Creates new products that are missing in Shopify
+- Shows a detailed analysis of changes
 
-**Sync-Analyse Beispiel:**
+**Sync Analysis Example:**
 ```json
 {
   "status": "success",
@@ -275,33 +275,33 @@ Prüft den Status der API und Datenbankverbindung.
 }
 ```
 
-## 🔍 Fehlerbehebung
+## 🔍 Troubleshooting
 
-### Datenbank-Verbindungsfehler
+### Database Connection Errors
 
-**Fehler:** `[Microsoft][ODBC Driver Manager] The data source name was not found`
+**Error:** `[Microsoft][ODBC Driver Manager] The data source name was not found`
 
-**Lösung:**
-1. Stellen Sie sicher, dass der ODBC Driver installiert ist
-2. Stellen Sie sicher, dass der Driver-Name in der .env Datei korrekt ist
-3. Testen Sie die Verbindung mit einem ODBC-Testtool
+**Solution:**
+1. Make sure the ODBC Driver is installed
+2. Make sure the driver name in the .env file is correct
+3. Test the connection with an ODBC test tool
 
-### Shopify API Fehler
+### Shopify API Errors
 
-**Fehler:** `401 Unauthorized`
+**Error:** `401 Unauthorized`
 
-**Lösung:**
-1. Überprüfen Sie den Access Token in der .env Datei
-2. Stellen Sie sicher, dass die App die richtigen Berechtigungen hat
-3. Testen Sie die Verbindung mit dem Shopify Admin API
+**Solution:**
+1. Check the Access Token in the .env file
+2. Make sure the app has the correct permissions
+3. Test the connection with the Shopify Admin API
 
-### Batch Size Fehler
+### Batch Size Errors
 
-**Fehler:** `range() arg 3 must not be zero`
+**Error:** `range() arg 3 must not be zero`
 
-**Lösung:**
-- Der Code wurde bereits aktualisiert, um diesen Fehler zu verhindern
-- Stellen Sie sicher, dass Sie die neueste Version verwenden
+**Solution:**
+- The code has already been updated to prevent this error
+- Make sure you are using the latest version
 
 ## 🧪 Testing the Update Function
 
@@ -367,24 +367,24 @@ curl -X GET http://localhost:8000/health
 
 ## 📊 Monitoring
 
-### Logs anzeigen
+### View logs
 ```bash
 # Docker
 docker-compose logs -f
 
-# Lokal
+# Local
 tail -f logs/app.log
 ```
 
-### API Dokumentation
+### API Documentation
 - Swagger UI: http://localhost:8000/api/v1/docs
 - ReDoc: http://localhost:8000/api/v1/redoc
 
-## 🔄 Automatisierung
+## 🔄 Automation
 
-### Cron Job für automatische Synchronisation
+### Cron Job for automatic synchronization
 ```bash
-# Täglich um 2:00 Uhr synchronisieren
+# Synchronize daily at 2:00 AM
 0 2 * * * curl -X POST http://localhost:8000/sync-products \
   -H "Content-Type: application/json" \
   -d '{"dry_run": false, "batch_size": 20}'
@@ -392,7 +392,7 @@ tail -f logs/app.log
 
 ### Docker Cron
 ```dockerfile
-# In Dockerfile hinzufügen
+# Add to Dockerfile
 RUN apt-get update && apt-get install -y cron
 COPY sync-cron /etc/cron.d/sync-cron
 RUN chmod 0644 /etc/cron.d/sync-cron
@@ -400,21 +400,21 @@ RUN crontab /etc/cron.d/sync-cron
 CMD ["cron", "-f"]
 ```
 
-## 🤝 Beitragen
+## 🤝 Contributing
 
-1. Fork das Repository
-2. Erstellen Sie einen Feature Branch
-3. Committen Sie Ihre Änderungen
-4. Pushen Sie zum Branch
-5. Erstellen Sie einen Pull Request
+1. Fork the repository
+2. Create a feature branch
+3. Commit your changes
+4. Push to the branch
+5. Create a pull request
 
-## 📄 Lizenz
+## 📄 License
 
-Dieses Projekt ist unter der MIT Lizenz lizenziert.
+This project is licensed under the MIT License.
 
 ## 🆘 Support
 
-Bei Fragen oder Problemen:
-1. Überprüfen Sie die Logs
-2. Testen Sie die Verbindungen
-3. Erstellen Sie ein Issue im Repository
+For questions or issues:
+1. Check the logs
+2. Test the connections
+3. Create an issue in the repository
