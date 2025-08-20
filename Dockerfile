@@ -15,17 +15,17 @@ RUN apt-get update && \
     unixodbc-dev \
     libpq-dev \
     ca-certificates \
-    # Microsoft ODBC Driver 18 for SQL Server
-    && mkdir -p /usr/share/keyrings \
-    && curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor > /usr/share/keyrings/microsoft-archive-keyring.gpg \
-    && curl -fsSL https://packages.microsoft.com/config/debian/11/prod.list | \
-    sed 's/\[arch=/[arch=amd64,arm64,armhf signed-by=\/usr\/share\/keyrings\/microsoft-archive-keyring.gpg/' \
-    > /etc/apt/sources.list.d/mssql-release.list \
-    && apt-get update \
-    && ACCEPT_EULA=Y apt-get install -y msodbcsql18 \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/* \
-    && rm -rf /tmp/*
+    wget \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Microsoft ODBC Driver 18 for SQL Server
+RUN curl https://packages.microsoft.com/keys/microsoft.asc | apt-key add - && \
+    curl https://packages.microsoft.com/config/debian/11/prod.list > /etc/apt/sources.list.d/mssql-release.list && \
+    apt-get update && \
+    ACCEPT_EULA=Y apt-get install -y msodbcsql18 && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* && \
+    rm -rf /tmp/*
 
 # Set work directory
 WORKDIR /app
