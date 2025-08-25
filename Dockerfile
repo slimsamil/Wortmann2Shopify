@@ -18,7 +18,7 @@ RUN apt-get update && \
     wget \
     && rm -rf /var/lib/apt/lists/*
 
-    # Microsoft ODBC Driver 18 for SQL Server
+# Microsoft ODBC Driver 18 for SQL Server
 RUN curl https://packages.microsoft.com/keys/microsoft.asc | apt-key add - && \
     curl https://packages.microsoft.com/config/debian/11/prod.list > /etc/apt/sources.list.d/mssql-release.list && \
     apt-get update && \
