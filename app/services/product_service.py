@@ -18,6 +18,17 @@ class ProductService:
                 supplier_aid = image.get('supplier_aid')
                 if supplier_aid:
                     images_by_product[supplier_aid].append(image)
+
+            # Sort images per product so that primary images come first
+            def _to_int(value):
+                try:
+                    return int(value)
+                except Exception:
+                    return 0
+
+            for _supplier_aid, _image_list in images_by_product.items():
+                # Place records with IsPrimary == 1 before others; keep original order among equals (Python sort is stable)
+                _image_list.sort(key=lambda img: _to_int(img.get('IsPrimary')), reverse=True)
             
             warranties_by_group = defaultdict(list)
             for warranty in warranties:
@@ -70,7 +81,8 @@ class ProductService:
                 if product_id not in product_map:
                     product_map[product_id] = {
                         **item,
-                        '_images': set(),
+                        '_images': [],
+                        '_images_seen': set(),
                         '_warranties': []
                     }
                 
@@ -83,8 +95,9 @@ class ProductService:
                 
                 if img_raw:
                     img_val = to_base64(img_raw)
-                    if img_val:
-                        current['_images'].add(img_val)
+                    if img_val and img_val not in current['_images_seen']:
+                        current['_images'].append(img_val)
+                        current['_images_seen'].add(img_val)
                 
                 # Process warranties
                 if item.get('name') and item.get('prozentsatz') is not None:

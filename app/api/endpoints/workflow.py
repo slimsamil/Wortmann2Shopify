@@ -127,7 +127,7 @@ async def sync_products_by_ids(
                         # Update existing product
                         result = await shopify_service.update_product_by_handle(
                             shopify_product.product.handle, 
-                            shopify_product.product.dict()
+                            shopify_product.product.model_dump()
                         )
                         action = "updated"
                     else:
