@@ -1,3 +1,4 @@
+import json
 from typing import List, Dict
 from collections import defaultdict
 from app.models.shopify import ShopifyProductWrapper, ShopifyProduct, ShopifyVariant, ShopifyOption, ShopifyMetafield, ShopifyImage
@@ -223,6 +224,17 @@ class ProductService:
             value=str(qty),
             type='single_line_text_field'
         ))
+        
+        if product.get('AccessoryProducts'):
+            accessory_products = product.get('AccessoryProducts');
+            verwandte_produkte = json.dumps(accessory_products.split("|"))
+
+            metafields.append(ShopifyMetafield(
+                namespace='custom',
+                key='verwandte_produkte',
+                value=verwandte_produkte,
+                type='json'
+            ))
         
         # Build final product structure
         shopify_product = ShopifyProduct(
