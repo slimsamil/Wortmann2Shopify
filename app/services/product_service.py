@@ -227,7 +227,7 @@ class ProductService:
         
         if product.get('AccessoryProducts'):
             accessory_products = product.get('AccessoryProducts');
-            verwandte_produkte = json.dumps(accessory_products.split("|"))
+            verwandte_produkte = json.dumps([f"prod-{id}" for id in accessory_products.split("|")])
 
             metafields.append(ShopifyMetafield(
                 namespace='custom',
