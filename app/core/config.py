@@ -14,6 +14,15 @@ class Settings(BaseSettings):
     shopify_shop_url: str = Field("https://your-shop.myshopify.com", env="SHOPIFY_SHOP_URL")
     shopify_access_token: str = Field("your_access_token", env="SHOPIFY_ACCESS_TOKEN")
     
+    # Wortmann FTP / Files
+    wortmann_ftp_host: str = Field("", env="WORTMANN_FTP_HOST")
+    wortmann_ftp_port: int = Field(21, env="WORTMANN_FTP_PORT")
+    wortmann_ftp_user: str = Field("", env="WORTMANN_FTP_USER")
+    wortmann_ftp_password: str = Field("", env="WORTMANN_FTP_PASSWORD")
+    wortmann_path_productcatalog: str = Field("/Preisliste/productcatalog.csv", env="WORTMANN_PATH_PRODUCTCATALOG")
+    wortmann_path_content: str = Field("/Preisliste/content.csv", env="WORTMANN_PATH_CONTENT")
+    wortmann_path_images_zip: str = Field("/Produktbilder/productimages.zip", env="WORTMANN_PATH_IMAGES_ZIP")
+    
     # API
     api_host: str = Field("0.0.0.0", env="API_HOST")
     api_port: int = Field(8000, env="API_PORT")
