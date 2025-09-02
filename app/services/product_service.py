@@ -1,10 +1,18 @@
-import json
-from typing import List, Dict
 from collections import defaultdict
-from app.models.shopify import ShopifyProductWrapper, ShopifyProduct, ShopifyVariant, ShopifyOption, ShopifyMetafield, ShopifyImage
-from app.utils.helpers import to_base64
-import logging
 from decimal import Decimal
+import json
+import logging
+from typing import Dict, List
+
+from app.models.shopify import (
+    ShopifyImage,
+    ShopifyMetafield,
+    ShopifyOption,
+    ShopifyProduct,
+    ShopifyProductWrapper,
+    ShopifyVariant,
+)
+from app.utils.helpers import to_base64
 
 logger = logging.getLogger(__name__)
 
@@ -75,47 +83,60 @@ class ProductService:
             
             # Group items by ProductId
             for item in items:
-                product_id = item.get('ProductId')
-                if not product_id:
+                try:
+                    product_id = item.get('ProductId')
+                    if not product_id:
+                        logger.warning(f"Skipping item without ProductId: {item}")
+                        continue
+                    
+                    if product_id not in product_map:
+                        product_map[product_id] = {
+                            **item,
+                            '_images': [],
+                            '_images_seen': set(),
+                            '_warranties': []
+                        }
+                    
+                    current = product_map[product_id]
+                    
+                    # Process images
+                    img_raw = (item.get('base64') or 
+                              item.get('hex') or 
+                              (item.get('images', [{}])[0].get('base64') if isinstance(item.get('images'), list) else None))
+                    
+                    if img_raw:
+                        try:
+                            img_val = to_base64(img_raw)
+                            if img_val and img_val not in current['_images_seen']:
+                                current['_images'].append(img_val)
+                                current['_images_seen'].add(img_val)
+                        except Exception as e:
+                            logger.warning(f"Error processing image for product {product_id}: {str(e)}")
+                    
+                    # Process warranties
+                    if item.get('name') and item.get('prozentsatz') is not None:
+                        current['_warranties'].append({
+                            'id': item.get('id'),
+                            'name': item.get('name'),
+                            'monate': item.get('monate'),
+                            'prozentsatz': item.get('prozentsatz'),
+                            'minimum': item.get('minimum'),
+                            'garantiegruppe': item.get('garantiegruppe')
+                        })
+                except Exception as e:
+                    logger.warning(f"Error processing item for product {item.get('ProductId', 'unknown')}: {str(e)}")
                     continue
-                
-                if product_id not in product_map:
-                    product_map[product_id] = {
-                        **item,
-                        '_images': [],
-                        '_images_seen': set(),
-                        '_warranties': []
-                    }
-                
-                current = product_map[product_id]
-                
-                # Process images
-                img_raw = (item.get('base64') or 
-                          item.get('hex') or 
-                          (item.get('images', [{}])[0].get('base64') if isinstance(item.get('images'), list) else None))
-                
-                if img_raw:
-                    img_val = to_base64(img_raw)
-                    if img_val and img_val not in current['_images_seen']:
-                        current['_images'].append(img_val)
-                        current['_images_seen'].add(img_val)
-                
-                # Process warranties
-                if item.get('name') and item.get('prozentsatz') is not None:
-                    current['_warranties'].append({
-                        'id': item.get('id'),
-                        'name': item.get('name'),
-                        'monate': item.get('monate'),
-                        'prozentsatz': item.get('prozentsatz'),
-                        'minimum': item.get('minimum'),
-                        'garantiegruppe': item.get('garantiegruppe')
-                    })
             
             # Convert to Shopify format
             shopify_products = []
-            for product in product_map.values():
-                shopify_product = self._create_shopify_product(product)
-                shopify_products.append(shopify_product)
+            for product_id, product in product_map.items():
+                try:
+                    shopify_product = self._create_shopify_product(product)
+                    shopify_products.append(shopify_product)
+                except Exception as e:
+                    logger.error(f"Error creating Shopify product for {product_id}: {str(e)}")
+                    # Continue with other products instead of failing completely
+                    continue
             
             logger.info(f"Processed {len(shopify_products)} products for Shopify")
             return shopify_products
@@ -125,11 +146,22 @@ class ProductService:
     
     def _create_shopify_product(self, product: Dict) -> ShopifyProductWrapper:
         """Create Shopify product structure"""
-        base_price = float(product.get('Price_B2C_inclVAT') or product.get('Price_B2B_Regular') or 0)
-        qty = int(product.get('Stock') or 0)
-        weight = float(product.get('GrossWeight') or product.get('NetWeight') or 0)
-        handle = f"prod-{product.get('ProductId')}"
-        has_group = int(product.get('Garantiegruppe') or 0) != 0
+        product_id = product.get('ProductId', 'unknown')
+        logger.debug(f"Creating Shopify product for {product_id}")
+        
+        try:
+            base_price = float(product.get('Price_B2C_inclVAT') or product.get('Price_B2B_Regular') or 0)
+            qty = int(product.get('Stock') or 0)
+            weight = float(product.get('GrossWeight') or product.get('NetWeight') or 0)
+            handle = f"prod-{product_id}"
+            has_group = int(product.get('Garantiegruppe') or 0) != 0
+        except (ValueError, TypeError) as e:
+            logger.warning(f"Error parsing numeric values for product {product_id}: {str(e)}")
+            # Use safe defaults
+            base_price = 0.0
+            qty = 0
+            weight = 0.0
+            has_group = False
         
         # Process images
         images = []
@@ -171,27 +203,31 @@ class ProductService:
             
             # Create variants for each warranty
             for warranty in filtered_warranties:
-                prozentsatz = warranty.get('prozentsatz', 0)
-                minimum = warranty.get('minimum', 0)
-                add_on = Decimal(str(base_price)) * prozentsatz / Decimal('100')
-                price = base_price + float(add_on)
-                sku_ext = f"G{warranty.get('id')}"
-                warranty_name = warranty.get('name', '')
-                months = warranty.get('monate', '')
-                
-                option_label = f"{warranty_name} {months} Monate"
-                option_values.append(warranty_name)
-                
-                variants.append(ShopifyVariant(
-                    price=f"{price:.2f}",
-                    sku=f"{product.get('ProductId')}-{sku_ext}",
-                    inventory_management=None,
-                    inventory_policy='deny',
-                    inventory_quantity=0,
-                    weight=weight,
-                    weight_unit='kg',
-                    option1=option_label
-                ))
+                try:
+                    prozentsatz = warranty.get('prozentsatz', 0)
+                    minimum = warranty.get('minimum', 0)
+                    add_on = Decimal(str(base_price)) * prozentsatz / Decimal('100')
+                    price = base_price + float(add_on)
+                    sku_ext = f"G{warranty.get('id')}"
+                    warranty_name = warranty.get('name', '')
+                    months = warranty.get('monate', '')
+                    
+                    option_label = f"{warranty_name} {months} Monate"
+                    option_values.append(warranty_name)
+                    
+                    variants.append(ShopifyVariant(
+                        price=f"{price:.2f}",
+                        sku=f"{product.get('ProductId')}-{sku_ext}",
+                        inventory_management=None,
+                        inventory_policy='deny',
+                        inventory_quantity=0,
+                        weight=weight,
+                        weight_unit='kg',
+                        option1=option_label
+                    ))
+                except Exception as e:
+                    logger.warning(f"Error processing warranty for product {product.get('ProductId')}: {str(e)}")
+                    continue
             
             # Fallback if no variants were created
             if not variants:
@@ -226,16 +262,20 @@ class ProductService:
         ))
         
         if product.get('AccessoryProducts'):
-            accessory_products = json.loads(product.get('AccessoryProducts'));
+            accessory_products = product.get('AccessoryProducts')
+            split = accessory_products.split('|')
+            print(split)
+            prefixed_ids = []
 
-            verwandte_produkte = json.dumps([f"prod-{id}" for id in accessory_products])
+            for id in split:
+                prefixed_ids.append(f"prod-{id}")
+            json_accessory_products = json.dumps(prefixed_ids)
             metafields.append(ShopifyMetafield(
-                namespace='custom',
-                key='verwandte_produkte',
-                value=verwandte_produkte,
-                type='json'
-            ))
-        
+                            namespace='custom',
+                            key='verwandte_produkte',
+                            value=json_accessory_products,
+                            type='json'
+                        ))
         # Build final product structure
         shopify_product = ShopifyProduct(
             title=product.get('Title') or 'Untitled Product',
