@@ -66,6 +66,11 @@ class SyncProductsRequest(BaseModel):
     batch_size: int = Field(default=5, description="Number of products to process in each batch")
 
 
+class DeleteProductsRequest(BaseModel):
+    product_ids: List[str] = Field(..., description="List of product IDs to sync (e.g., ['eu1009805', 'eu1009806'])")
+    batch_size: int = Field(default=5, description="Number of products to process in each batch")
+
+
 class WorkflowResponse(BaseModel):
     status: str
     message: str

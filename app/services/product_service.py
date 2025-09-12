@@ -258,13 +258,40 @@ class ProductService:
             namespace='custom',
             key='Inventarbestand',
             value=str(qty),
+            type='number_integer'
+        ))
+
+        metafields.append(ShopifyMetafield(
+            namespace='custom',
+            key='StockNextDelivery',
+            value=product.get('StockNextDelivery') or '',
             type='single_line_text_field'
         ))
         
+        metafields.append(ShopifyMetafield(
+            namespace='custom',
+            key='Garantiegruppe',
+            value=int(product.get('Garantiegruppe')) or 0,
+            type='number_integer'
+        ))
+
+        metafields.append(ShopifyMetafield(
+            namespace='custom',
+            key='Price_B2B_Regular',
+            value=int(product.get('Price_B2B_Regular')) or 0,
+            type='number_decimal'
+        ))
+
+        metafields.append(ShopifyMetafield(
+            namespace='custom',
+            key='Price_B2B_Discounted',
+            value=int(product.get('Price_B2B_Discounted')) or 0,
+            type='number_decimal'
+        ))
+
         if product.get('AccessoryProducts'):
             accessory_products = product.get('AccessoryProducts')
             split = accessory_products.split('|')
-            print(split)
             prefixed_ids = []
 
             for id in split:
@@ -276,6 +303,13 @@ class ProductService:
                             value=json_accessory_products,
                             type='json'
                         ))
+        else:
+            metafields.append(ShopifyMetafield(
+                            namespace='custom',
+                            key='verwandte_produkte',
+                            value='',
+                            type='json'
+                        ))
         # Build final product structure
         shopify_product = ShopifyProduct(
             title=product.get('Title') or 'Untitled Product',
@@ -285,7 +319,7 @@ class ProductService:
             product_type=product.get('Category'),
             variants=variants,
             options=[ShopifyOption(
-                name='Warranty',
+                name='Garantie',
                 values=list(set(option_values))
             )],
             metafields=metafields,

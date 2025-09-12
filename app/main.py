@@ -2,7 +2,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from app.core.config import settings
-from app.api.endpoints import workflow, health
+from app.api.endpoints import products, health, wortmann
 import logging
 import time
  
@@ -66,10 +66,17 @@ app.include_router(
 )
  
 app.include_router(
-    workflow.router,
-    prefix="/api/v1/workflow",
-    tags=["workflow"]
+    products.router,
+    prefix="/api/v1/products",
+    tags=["products"]
 )
+
+app.include_router(
+    wortmann.router,
+    prefix="/api/v1/wortmann",
+    tags=["wortmann"]
+)
+
  
 # Root endpoint
 @app.get("/")

@@ -204,10 +204,10 @@ Synchronizes a single product between database and Shopify.
 }
 ```
 
-#### 3. Execute Workflow
-**POST** `/api/v1/workflow/execute-workflow`
+#### 3. Upload all products
+**POST** `/api/v1/products/upload-all-products`
 
-Executes the complete workflow for all products.
+Uploads all products from the databse to shopify.
 
 **Parameters:**
 ```json
