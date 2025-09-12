@@ -267,25 +267,18 @@ class ProductService:
             value=product.get('StockNextDelivery') or '',
             type='single_line_text_field'
         ))
-        
-        metafields.append(ShopifyMetafield(
-            namespace='custom',
-            key='Garantiegruppe',
-            value=int(product.get('Garantiegruppe')) or 0,
-            type='number_integer'
-        ))
 
         metafields.append(ShopifyMetafield(
             namespace='custom',
             key='Price_B2B_Regular',
-            value=int(product.get('Price_B2B_Regular')) or 0,
+            value=float(product.get('Price_B2B_Regular')) or 0,
             type='number_decimal'
         ))
 
         metafields.append(ShopifyMetafield(
             namespace='custom',
             key='Price_B2B_Discounted',
-            value=int(product.get('Price_B2B_Discounted')) or 0,
+            value=float(product.get('Price_B2B_Discounted')) or 0,
             type='number_decimal'
         ))
 

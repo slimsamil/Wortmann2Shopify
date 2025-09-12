@@ -528,8 +528,8 @@ async def export_shopify_products(
                     variant0 = product['variants'][0]
                     try:
                         price = float(variant0.get('price', 0) or 0)
-                        price_b2b_regular = product.get('metafields', {}).get('Price_B2B_Regular', 0) 
-                        price_b2b_discounted = product.get('metafields', {}).get('Price_B2B_Discounted', 0) 
+                        price_b2b_regular = float(product.get('metafields', {}).get('Price_B2B_Regular', 0))
+                        price_b2b_discounted = float(product.get('metafields', {}).get('Price_B2B_Discounted', 0))
                         price_b2c_incl_vat = price  # explicit per requested schema example
                     except (ValueError, TypeError):
                         pass
@@ -555,7 +555,6 @@ async def export_shopify_products(
 
                 accesssory_products = product.get('metafields', {}).get('verwandte_produkte', '')
                 stock_next_delivery = product.get('metafields', {}).get('StockNextDelivery', '')
-                garantiegruppe = product.get('metafields', {}).get('Garantiegruppe', 0)
 
 
                 # Images
@@ -591,7 +590,7 @@ async def export_shopify_products(
                     "EOL": False,
                     "Promotion": False,
                     "AccessoryProducts": accesssory_products,
-                    "Garantiegruppe": garantiegruppe,
+                    "Garantiegruppe": 0,
                 }
                 
                 standardized_products.append(standardized_product)

@@ -808,9 +808,6 @@ class ShopifyService:
             "  inventarbestand: metafield(namespace: \"custom\", key: \"Inventarbestand\") { "
             "    __typename key value namespace "
             "  } "
-            "  garantiegruppe: metafield(namespace: \"custom\", key: \"Garantiegruppe\") { "
-            "    __typename key value namespace "
-            "  } "
             "  price_b2b_regular: metafield(namespace: \"custom\", key: \"Price_B2B_Regular\") { "
             "    __typename key value namespace "
             "  } "
@@ -1027,10 +1024,6 @@ class ShopifyService:
                 if 'StockNextDelivery' in product_node and product_node['StockNextDelivery']:
                     raw_value = product_node['StockNextDelivery'].get('value')
                     metafields['StockNextDelivery'] = _parse_metafield_value(raw_value)
-
-                if 'garantiegruppe' in product_node and product_node['garantiegruppe']:
-                    raw_value = product_node['garantiegruppe'].get('value')
-                    metafields['Garantiegruppe'] = _parse_metafield_value(raw_value)
 
                 if 'price_b2b_regular' in product_node and product_node['price_b2b_regular']:
                     raw_value = product_node['price_b2b_regular'].get('value')
