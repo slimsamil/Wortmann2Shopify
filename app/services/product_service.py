@@ -271,14 +271,14 @@ class ProductService:
         metafields.append(ShopifyMetafield(
             namespace='custom',
             key='Price_B2B_Regular',
-            value=float(product.get('Price_B2B_Regular')) or 0,
+            value=str(product.get('Price_B2B_Regular')) or 0,
             type='number_decimal'
         ))
 
         metafields.append(ShopifyMetafield(
             namespace='custom',
             key='Price_B2B_Discounted',
-            value=float(product.get('Price_B2B_Discounted')) or 0,
+            value=str(product.get('Price_B2B_Discounted')) or 0,
             type='number_decimal'
         ))
 

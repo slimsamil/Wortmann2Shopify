@@ -808,6 +808,9 @@ class ShopifyService:
             "  inventarbestand: metafield(namespace: \"custom\", key: \"Inventarbestand\") { "
             "    __typename key value namespace "
             "  } "
+            "  stock_next_delivery: metafield(namespace: \"custom\", key: \"StockNextDelivery\") { "
+            "    __typename key value namespace "
+            "  } "
             "  price_b2b_regular: metafield(namespace: \"custom\", key: \"Price_B2B_Regular\") { "
             "    __typename key value namespace "
             "  } "
@@ -1021,8 +1024,8 @@ class ShopifyService:
                     raw_value = product_node['inventarbestand'].get('value')
                     metafields['Inventarbestand'] = _parse_metafield_value(raw_value)
 
-                if 'StockNextDelivery' in product_node and product_node['StockNextDelivery']:
-                    raw_value = product_node['StockNextDelivery'].get('value')
+                if 'stock_next_delivery' in product_node and product_node['stock_next_delivery']:
+                    raw_value = product_node['stock_next_delivery'].get('value')
                     metafields['StockNextDelivery'] = _parse_metafield_value(raw_value)
 
                 if 'price_b2b_regular' in product_node and product_node['price_b2b_regular']:
