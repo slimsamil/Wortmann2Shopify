@@ -83,6 +83,29 @@ class WortmannService:
         def to_bool_01(val: Any) -> bool:
             return str(val).strip() == '1'
 
+        def parse_date(date_string):
+            """
+            Convert date from 'YYYY-MM-DD' format to 'DD.MM.YYYY' format
+            
+            Args:
+                date_string (str): Date in format "2025-09-29"
+            
+            Returns:
+                str: Date in format "29.09.2025"
+            """
+
+            if date_string is None:
+                return '';
+            if not date_string or not date_string.strip():
+                return '';
+                
+            # Split the date string by hyphen
+            year, month, day = date_string.strip().split('-')
+            
+            # Return in DD.MM.YYYY format
+            return f"{day}.{month}.{year}"
+
+
         normalized: List[Dict[str, Any]] = []
         for src in items:
             normalized.append({
@@ -100,7 +123,7 @@ class WortmannService:
                 'Currency': src.get('Price_B2X_Currency') or 'EUR',
                 'VATRate': parse_float(src.get('Price_B2C_VATRate')),
                 'Stock': parse_int(src.get('Stock')),
-                'StockNextDelivery': parse_int(src.get('StockNextDelivery')),
+                'StockNextDelivery': parse_date(src.get('StockNextDelivery')) or '',
                 'ImagePrimary': src.get('ImagePrimary') or '',
                 'ImageAdditional': src.get('ImageAdditional') or '',
                 'GrossWeight': parse_float(src.get('GrossWeight')),
