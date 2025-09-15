@@ -92,28 +92,6 @@ class DatabaseService:
             logger.error(f"Error fetching images: {str(e)}")
             raise
     
-    def fetch_images_by_product_id(self, product_id: str) -> List[Dict[str, Any]]:
-        """Fetch images for a specific product ID from BilderShopify table"""
-        try:
-            with self.db_manager.get_connection() as conn:
-                cursor = conn.cursor()
-                cursor.execute("SELECT * FROM BilderShopify WHERE supplier_aid = ?", (product_id,))
-                
-                columns = [column[0] for column in cursor.description]
-                images = []
-                
-                for row in cursor.fetchall():
-                    image_dict = {}
-                    for i, value in enumerate(row):
-                        image_dict[columns[i]] = value
-                    images.append(image_dict)
-                
-                logger.info(f"Fetched {len(images)} images for product {product_id} from database")
-                return images
-        except Exception as e:
-            logger.error(f"Error fetching images for product {product_id}: {str(e)}")
-            raise
-
 
     def fetch_warranties(self) -> List[Dict[str, Any]]:
         """Fetch warranties from GarantieOptionen table"""
@@ -137,6 +115,7 @@ class DatabaseService:
             logger.error(f"Error fetching warranties: {str(e)}")
             raise
     
+
     def upsert_wortmann_products(self, products: List[Dict[str, Any]]) -> int:
         """Upsert Wortmann product rows into WortmannProdukte table."""
         if not products:
@@ -177,6 +156,7 @@ class DatabaseService:
             logger.error(f"Error upserting Wortmann products: {str(e)}")
             raise
     
+
     def insert_images_records(self, records: List[Dict[str, Any]]) -> int:
         """Insert image binaries into BilderShopify. Records require supplier_aid, filename, data (bytes), IsPrimary (0/1)."""
         if not records:
@@ -202,6 +182,7 @@ class DatabaseService:
         except Exception as e:
             logger.error(f"Error inserting image records: {str(e)}")
             raise
+    
     
     def test_connection(self) -> bool:
         """Test database connection"""

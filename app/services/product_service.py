@@ -303,6 +303,7 @@ class ProductService:
                             value='',
                             type='json'
                         ))
+                        
         # Build final product structure
         shopify_product = ShopifyProduct(
             title=product.get('Title') or 'Untitled Product',
