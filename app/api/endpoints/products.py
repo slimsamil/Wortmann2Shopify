@@ -419,30 +419,49 @@ async def update_products_by_ids(
     start_time = time.time()
     try:
         ids = [pid.replace('prod-', '') for pid in request.product_ids]
-        # Fetch all products in a single query
-        db_products = db_service.fetch_products_by_ids(ids)
-        if not db_products:
-            raise HTTPException(status_code=404, detail=f"No products found in database for IDs: {ids}")
-        
-        # Create lookup for fast access
-        db_products_by_id = {p.get('ProductId'): p for p in db_products}
-        
+        if not ids:
+            raise HTTPException(status_code=400, detail="No product IDs provided")
+
+        # Fetch shared, non-ID-specific data once
         images = db_service.fetch_images()
         warranties = db_service.fetch_warranties()
+
         results = []
-        for pid in ids:
-            db_p = db_products_by_id.get(pid)
-            if not db_p:
-                results.append({"product_id": pid, "status": "skipped", "message": "not_in_db"})
+        batch_size = 200
+        # Process IDs in batches to avoid overly large SQL IN clauses
+        for i in range(0, len(ids), batch_size):
+            batch_ids = ids[i:i + batch_size]
+
+            # Fetch only the current batch's products
+            db_products_batch = db_service.fetch_products_by_ids(batch_ids)
+            if not db_products_batch:
+                # If nothing found for this batch, record skips and continue
+                for pid in batch_ids:
+                    results.append({"product_id": pid, "status": "skipped", "message": "not_in_db"})
                 continue
-            handle = f"prod-{pid}"
-            merged = product_service.merge_data([db_p], images, warranties)
-            wrappers = product_service.process_products(merged)
-            if not wrappers:
-                results.append({"product_id": pid, "status": "error", "message": "transform_failed"})
-                continue
-            res = await shopify_service.update_product_by_handle(handle, wrappers[0].product.model_dump())
-            results.append({"product_id": pid, "handle": handle, **res})
+
+            # Create lookup for fast access within the batch
+            db_products_by_id = {p.get('ProductId'): p for p in db_products_batch}
+
+            for pid in batch_ids:
+                db_p = db_products_by_id.get(pid)
+                if not db_p:
+                    results.append({"product_id": pid, "status": "skipped", "message": "not_in_db"})
+                    continue
+
+                handle = f"prod-{pid}"
+                merged = product_service.merge_data([db_p], images, warranties)
+                wrappers = product_service.process_products(merged)
+                if not wrappers:
+                    results.append({"product_id": pid, "status": "error", "message": "transform_failed"})
+                    continue
+
+                res = await shopify_service.update_product_by_handle(handle, wrappers[0].product.model_dump())
+                results.append({"product_id": pid, "handle": handle, **res})
+
+            # Optional small pause between batches to be gentle on upstream systems
+            if i + batch_size < len(ids):
+                await asyncio.sleep(0.5)
         execution_time = time.time() - start_time
         return WorkflowResponse(
             status="completed",
