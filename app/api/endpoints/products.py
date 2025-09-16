@@ -422,10 +422,6 @@ async def update_products_by_ids(
         if not ids:
             raise HTTPException(status_code=400, detail="No product IDs provided")
 
-        # Fetch shared, non-ID-specific data once
-        images = db_service.fetch_images()
-        warranties = db_service.fetch_warranties()
-
         results = []
         batch_size = 200
         # Process IDs in batches to avoid overly large SQL IN clauses
@@ -440,10 +436,27 @@ async def update_products_by_ids(
                     results.append({"product_id": pid, "status": "skipped", "message": "not_in_db"})
                 continue
 
-            # Create lookup for fast access within the batch
-            db_products_by_id = {p.get('ProductId'): p for p in db_products_batch}
+            # Fetch only relevant images and warranties for this batch
+            # Collect supplier_aid and garantiegruppe values from batch rows
+            supplier_aids = [str(p.get('ProductId')) for p in db_products_batch if p.get('ProductId') is not None]
+            groups = []
+            for p in db_products_batch:
+                try:
+                    grp = p.get('Garantiegruppe')
+                    if grp is not None:
+                        groups.append(int(grp))
+                except Exception:
+                    continue
+
+            images = db_service.fetch_images_by_supplier_aids(supplier_aids)
+            warranties = db_service.fetch_warranties_by_groups(list(set(groups))) if groups else []
+
+            # Create lookup for fast access within the batch (normalize keys to str)
+            db_products_by_id = {str(p.get('ProductId')): p for p in db_products_batch}
 
             for pid in batch_ids:
+                # Normalize pid to str for consistent lookup
+                pid = str(pid)
                 db_p = db_products_by_id.get(pid)
                 if not db_p:
                     results.append({"product_id": pid, "status": "skipped", "message": "not_in_db"})

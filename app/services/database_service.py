@@ -92,6 +92,29 @@ class DatabaseService:
             logger.error(f"Error fetching images: {str(e)}")
             raise
     
+    def fetch_images_by_supplier_aids(self, supplier_aids: List[str]) -> List[Dict[str, Any]]:
+        """Fetch images for specified supplier_aid (ProductId) values only."""
+        if not supplier_aids:
+            return []
+        try:
+            with self.db_manager.get_connection() as conn:
+                cursor = conn.cursor()
+                placeholders = ','.join(['?' for _ in supplier_aids])
+                query = f"SELECT * FROM BilderShopify WHERE supplier_aid IN ({placeholders})"
+                cursor.execute(query, supplier_aids)
+                columns = [column[0] for column in cursor.description]
+                images = []
+                for row in cursor.fetchall():
+                    image_dict = {}
+                    for i, value in enumerate(row):
+                        image_dict[columns[i]] = value
+                    images.append(image_dict)
+                logger.info(f"Fetched {len(images)} images by supplier_aids (requested: {len(supplier_aids)})")
+                return images
+        except Exception as e:
+            logger.error(f"Error fetching images by supplier_aids: {str(e)}")
+            raise
+
 
     def fetch_warranties(self) -> List[Dict[str, Any]]:
         """Fetch warranties from GarantieOptionen table"""
@@ -113,6 +136,29 @@ class DatabaseService:
                 return warranties
         except Exception as e:
             logger.error(f"Error fetching warranties: {str(e)}")
+            raise
+    
+    def fetch_warranties_by_groups(self, groups: List[int]) -> List[Dict[str, Any]]:
+        """Fetch warranties limited to the specified garantiegruppe values."""
+        if not groups:
+            return []
+        try:
+            with self.db_manager.get_connection() as conn:
+                cursor = conn.cursor()
+                placeholders = ','.join(['?' for _ in groups])
+                query = f"SELECT * FROM GarantieOptionen WHERE garantiegruppe IN ({placeholders})"
+                cursor.execute(query, groups)
+                columns = [column[0] for column in cursor.description]
+                warranties = []
+                for row in cursor.fetchall():
+                    warranty_dict = {}
+                    for i, value in enumerate(row):
+                        warranty_dict[columns[i]] = value
+                    warranties.append(warranty_dict)
+                logger.info(f"Fetched {len(warranties)} warranties by groups (requested groups: {len(groups)})")
+                return warranties
+        except Exception as e:
+            logger.error(f"Error fetching warranties by groups: {str(e)}")
             raise
     
 
