@@ -16,6 +16,7 @@ class ShopifyService:
             'Content-Type': 'application/json',
             'X-Shopify-Access-Token': self.access_token
         }
+        self._primary_location_id: Optional[int] = None
    
     async def test_connection(self) -> bool:
         """Test Shopify API connection"""
@@ -398,6 +399,13 @@ class ShopifyService:
                 if response.status_code == 200:
                     updated_product = response.json()
                     logger.info(f"Successfully updated product {handle} in Shopify")
+
+                    # Ensure inventory levels are updated, since Product PUT ignores inventory quantities
+                    try:
+                        await self._update_inventory_for_product(product_id, product_data.get('variants', []))
+                    except Exception as inv_e:
+                        logger.warning(f"Inventory update skipped/failed for {handle}: {str(inv_e)}")
+
                     return {
                         "status": "success",
                         "message": f"Product {handle} updated successfully",
@@ -419,6 +427,97 @@ class ShopifyService:
                 "status": "error",
                 "message": f"Error updating product {handle}: {str(e)}"
             }
+
+    async def _get_primary_location_id(self, client: httpx.AsyncClient) -> Optional[int]:
+        if self._primary_location_id:
+            return self._primary_location_id
+        resp = await client.get(
+            f"{self.shop_url}/admin/api/2023-10/locations.json",
+            headers=self.headers,
+            timeout=30.0
+        )
+        if resp.status_code != 200:
+            logger.error(f"Failed to fetch locations: {resp.status_code} - {resp.text}")
+            return None
+        data = resp.json() or {}
+        locations = data.get('locations') or []
+        if not locations:
+            return None
+        # Prefer active and primary locations first
+        primary = None
+        for loc in locations:
+            if loc.get('active'):
+                primary = loc
+                break
+        if not primary:
+            primary = locations[0]
+        try:
+            self._primary_location_id = int(primary.get('id'))
+        except Exception:
+            self._primary_location_id = None
+        return self._primary_location_id
+
+    async def _update_inventory_for_product(self, product_id: int, expected_variants: List[Dict[str, Any]]):
+        """Update inventory levels for a product's variants by matching on SKU.
+        expected_variants should contain 'sku' and 'inventory_quantity' values from our payload.
+        """
+        if not expected_variants:
+            return
+        async with httpx.AsyncClient() as client:
+            # 1) Fetch REST product to obtain inventory_item_id per variant
+            resp = await client.get(
+                f"{self.shop_url}/admin/api/2023-10/products/{product_id}.json",
+                headers=self.headers,
+                timeout=30.0
+            )
+            if resp.status_code != 200:
+                logger.warning(f"Cannot fetch product {product_id} for inventory: {resp.status_code}")
+                return
+            product = (resp.json() or {}).get('product') or {}
+            variants = product.get('variants') or []
+            # Build SKU -> inventory_item_id map
+            sku_to_inv_item: Dict[str, int] = {}
+            for v in variants:
+                sku = v.get('sku')
+                inv_item = v.get('inventory_item_id')
+                if sku and inv_item:
+                    try:
+                        sku_to_inv_item[str(sku)] = int(inv_item)
+                    except Exception:
+                        continue
+
+            if not sku_to_inv_item:
+                return
+
+            # 2) Get primary location
+            location_id = await self._get_primary_location_id(client)
+            if not location_id:
+                logger.warning("No primary location id available; skipping inventory update")
+                return
+
+            # 3) For each expected variant with sku and inventory_quantity, set level
+            for ev in expected_variants:
+                sku = ev.get('sku')
+                qty = ev.get('inventory_quantity')
+                if sku is None or qty is None:
+                    continue
+                inv_item_id = sku_to_inv_item.get(str(sku))
+                if not inv_item_id:
+                    continue
+                # Use set endpoint to overwrite available quantity
+                set_body = {
+                    "location_id": location_id,
+                    "inventory_item_id": inv_item_id,
+                    "available": int(qty)
+                }
+                set_resp = await client.post(
+                    f"{self.shop_url}/admin/api/2023-10/inventory_levels/set.json",
+                    headers=self.headers,
+                    json=set_body,
+                    timeout=30.0
+                )
+                if set_resp.status_code not in (200, 201):
+                    logger.warning(f"Inventory set failed for sku {sku}: {set_resp.status_code} - {set_resp.text}")
    
     async def compare_and_update_products(self, db_products: List[Dict], shopify_products: List[Dict]) -> Dict[str, Any]:
         """Compare database products with Shopify products and update changes"""

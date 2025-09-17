@@ -39,14 +39,31 @@ class ProductService:
                 # Place records with IsPrimary == 1 before others; keep original order among equals (Python sort is stable)
                 _image_list.sort(key=lambda img: _to_int(img.get('IsPrimary')), reverse=True)
             
+            # Build warranties_by_group with de-duplication by warranty 'id' and basic validity filter
             warranties_by_group = defaultdict(list)
+            temp_warranties_map = defaultdict(dict)  # group -> {id -> warranty}
             for warranty in warranties:
                 group = warranty.get('garantiegruppe')
-                if group is not None:
-                    warranties_by_group[group].append(warranty)
+                if group is None:
+                    continue
+                # Keep only meaningful warranty rows (align with later processing expectations)
+                if warranty.get('name') is None and warranty.get('prozentsatz') is None:
+                    continue
+                wid = warranty.get('id')
+                # Use id as the uniqueness key when available; fallback to (name, monate) to avoid duplicates
+                unique_key = wid if wid is not None else (
+                    warranty.get('name'), warranty.get('monate')
+                )
+                if unique_key in temp_warranties_map[group]:
+                    continue
+                temp_warranties_map[group][unique_key] = warranty
+
+            for group, by_id in temp_warranties_map.items():
+                warranties_by_group[group] = list(by_id.values())
             
             # Merge data
             merged_items = []
+            total_products = len(products)
             for product in products:
                 product_id = product.get('ProductId')
                 guarantee_group = product.get('Garantiegruppe')
@@ -54,23 +71,34 @@ class ProductService:
                 base_item = product.copy()
                 
                 # Add images
+                images_count = 0
                 if product_id in images_by_product:
                     for image in images_by_product[product_id]:
                         merged_item = {**base_item, **image}
                         merged_items.append(merged_item)
+                        images_count += 1
                 
                 # Add warranties
+                warranties_count = 0
                 if guarantee_group is not None and guarantee_group in warranties_by_group:
                     for warranty in warranties_by_group[guarantee_group]:
                         merged_item = {**base_item, **warranty}
                         merged_items.append(merged_item)
+                        warranties_count += 1
                 
                 # If no images or warranties, add base item
                 if (product_id not in images_by_product and 
                     (guarantee_group is None or guarantee_group not in warranties_by_group)):
                     merged_items.append(base_item)
+                
+                try:
+                    logger.debug(
+                        f"merge_data: ProductId={product_id} images={images_count} warranties={warranties_count} total_for_product={images_count + warranties_count if (images_count or warranties_count) else 1}"
+                    )
+                except Exception:
+                    pass
             
-            logger.info(f"Merged data resulted in {len(merged_items)} items")
+            logger.info(f"Merged data resulted in {len(merged_items)} items across {total_products} products")
             return merged_items
         except Exception as e:
             logger.error(f"Error merging data: {str(e)}")
