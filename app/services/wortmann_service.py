@@ -116,7 +116,7 @@ class WortmannService:
                 'Manufacturer': src.get('Manufacturer') or 'WORTMANN AG',
                 'Category': src.get('CategoryName_1031_German') or '',
                 'CategoryPath': src.get('CategoryPath_1031_German') or '',
-                'Warranty': src.get('WarrantyDescription_1031_German') or '',
+                'Warranty': src.get('WarrantyDescription_1031_German') or 'Standard',
                 'Price_B2B_Regular': parse_float(src.get('Price_B2B_Regular')),
                 'Price_B2B_Discounted': parse_float(src.get('Price_B2B_Discounted')),
                 'Price_B2C_inclVAT': parse_float(src.get('Price_B2C_inclVAT')),
