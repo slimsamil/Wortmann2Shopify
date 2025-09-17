@@ -27,7 +27,7 @@ class ShopifyMetafield(BaseModel):
 
 class ShopifyImage(BaseModel):
     attachment: str
-
+    alt: Optional[str] = None
 
 class ShopifyProduct(BaseModel):
     title: str

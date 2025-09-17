@@ -195,7 +195,7 @@ class ProductService:
         images = []
         for img_b64 in product.get('_images', []):
             if img_b64:
-                images.append(ShopifyImage(attachment=img_b64))
+                images.append(ShopifyImage(attachment=img_b64, alt=product.get('Title') or 'Untitled Product'))
         
         variants = []
         option_values = []
