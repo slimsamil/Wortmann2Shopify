@@ -406,6 +406,17 @@ class ShopifyService:
                     except Exception as inv_e:
                         logger.warning(f"Inventory update skipped/failed for {handle}: {str(inv_e)}")
 
+                    # Ensure StockNextDelivery metafield reflects empty values by deleting when empty
+                    try:
+                        desired_snd = None
+                        for mf in (product_data.get('metafields') or []):
+                            if (mf.get('namespace') == 'custom' and mf.get('key') == 'StockNextDelivery'):
+                                desired_snd = mf.get('value')
+                                break
+                        await self._sync_stock_next_delivery_metafield(product_id, desired_snd)
+                    except Exception as mf_e:
+                        logger.warning(f"StockNextDelivery metafield sync skipped/failed for {handle}: {str(mf_e)}")
+
                     return {
                         "status": "success",
                         "message": f"Product {handle} updated successfully",
@@ -518,6 +529,79 @@ class ShopifyService:
                 )
                 if set_resp.status_code not in (200, 201):
                     logger.warning(f"Inventory set failed for sku {sku}: {set_resp.status_code} - {set_resp.text}")
+
+    async def _sync_stock_next_delivery_metafield(self, product_id: int, desired_value: Optional[str]) -> None:
+        """Ensure the product's StockNextDelivery metafield matches desired_value.
+        If desired_value is falsy (None/""), delete the metafield if it exists.
+        If desired_value is non-empty, upsert it.
+        """
+        async with httpx.AsyncClient() as client:
+            # 1) List existing product metafields
+            list_resp = await client.get(
+                f"{self.shop_url}/admin/api/2023-10/products/{product_id}/metafields.json",
+                headers=self.headers,
+                timeout=30.0
+            )
+            if list_resp.status_code != 200:
+                logger.warning(f"Cannot list metafields for product {product_id}: {list_resp.status_code}")
+                return
+            metafields = (list_resp.json() or {}).get('metafields') or []
+            target = None
+            for mf in metafields:
+                if mf.get('namespace') == 'custom' and mf.get('key') == 'StockNextDelivery':
+                    target = mf
+                    break
+
+            # 2) If desired empty -> delete if exists
+            if not desired_value:
+                if target and target.get('id'):
+                    del_resp = await client.delete(
+                        f"{self.shop_url}/admin/api/2023-10/metafields/{target['id']}.json",
+                        headers=self.headers,
+                        timeout=30.0
+                    )
+                    if del_resp.status_code not in (200, 204):
+                        logger.warning(f"Failed deleting StockNextDelivery for product {product_id}: {del_resp.status_code} - {del_resp.text}")
+                return
+
+            # 3) desired non-empty -> upsert
+            if target and target.get('id'):
+                put_body = {
+                    "metafield": {
+                        "id": target['id'],
+                        "value": desired_value,
+                        "type": "single_line_text_field"
+                    }
+                }
+                put_resp = await client.put(
+                    f"{self.shop_url}/admin/api/2023-10/metafields/{target['id']}.json",
+                    headers=self.headers,
+                    json=put_body,
+                    timeout=30.0
+                )
+                if put_resp.status_code != 200:
+                    logger.warning(f"Failed updating StockNextDelivery for product {product_id}: {put_resp.status_code} - {put_resp.text}")
+                return
+
+            # Create new metafield
+            post_body = {
+                "metafield": {
+                    "namespace": "custom",
+                    "key": "StockNextDelivery",
+                    "owner_id": product_id,
+                    "owner_resource": "product",
+                    "type": "single_line_text_field",
+                    "value": desired_value
+                }
+            }
+            post_resp = await client.post(
+                f"{self.shop_url}/admin/api/2023-10/metafields.json",
+                headers=self.headers,
+                json=post_body,
+                timeout=30.0
+            )
+            if post_resp.status_code not in (200, 201):
+                logger.warning(f"Failed creating StockNextDelivery for product {product_id}: {post_resp.status_code} - {post_resp.text}")
    
     async def compare_and_update_products(self, db_products: List[Dict], shopify_products: List[Dict]) -> Dict[str, Any]:
         """Compare database products with Shopify products and update changes"""
