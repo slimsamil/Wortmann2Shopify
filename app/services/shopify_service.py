@@ -1,6 +1,7 @@
 import httpx
 import asyncio
 from typing import List, Dict, Any, Optional
+import time as _time
 from app.core.config import settings
 from app.models.shopify import ShopifyProductWrapper
 import logging
@@ -17,6 +18,43 @@ class ShopifyService:
             'X-Shopify-Access-Token': self.access_token
         }
         self._primary_location_id: Optional[int] = None
+        self._last_rest_ts: float = 0.0
+
+    async def _rest_call(self, client: httpx.AsyncClient, method: str, path: str, json: Optional[Dict[str, Any]] = None,
+                         max_retries: int = 6) -> httpx.Response:
+        """Rate-limited REST call with retry/backoff for 429/5xx.
+        Enforces ~2 req/sec by spacing calls at least 0.55s apart.
+        Path should be like '/admin/api/2023-10/...'
+        """
+        # Space out requests to ~2 rps
+        since = _time.time() - self._last_rest_ts
+        if since < 0.55:
+            await asyncio.sleep(0.55 - since)
+        url = f"{self.shop_url}{path}"
+        backoff = 0.6
+        for attempt in range(max_retries):
+            try:
+                resp = await client.request(method.upper(), url, headers=self.headers, json=json, timeout=60.0)
+                self._last_rest_ts = _time.time()
+                if resp.status_code in (429, 500, 502, 503, 504):
+                    # Respect Retry-After if present
+                    retry_after = resp.headers.get('Retry-After')
+                    if retry_after:
+                        try:
+                            wait_s = float(retry_after)
+                        except Exception:
+                            wait_s = backoff
+                    else:
+                        wait_s = backoff
+                    await asyncio.sleep(wait_s)
+                    backoff = min(backoff * 2, 8)
+                    continue
+                return resp
+            except httpx.ReadTimeout:
+                await asyncio.sleep(backoff)
+                backoff = min(backoff * 2, 8)
+                continue
+        return resp
    
     async def test_connection(self) -> bool:
         """Test Shopify API connection"""
@@ -389,12 +427,7 @@ class ShopifyService:
                 shopify_product_data["product"]["images"] = product_data['images']
            
             async with httpx.AsyncClient() as client:
-                response = await client.put(
-                    f"{self.shop_url}/admin/api/2023-10/products/{product_id}.json",
-                    headers=self.headers,
-                    json=shopify_product_data,
-                    timeout=30.0
-                )
+                response = await self._rest_call(client, 'PUT', f"/admin/api/2023-10/products/{product_id}.json", json=shopify_product_data)
                
                 if response.status_code == 200:
                     updated_product = response.json()
@@ -442,11 +475,7 @@ class ShopifyService:
     async def _get_primary_location_id(self, client: httpx.AsyncClient) -> Optional[int]:
         if self._primary_location_id:
             return self._primary_location_id
-        resp = await client.get(
-            f"{self.shop_url}/admin/api/2023-10/locations.json",
-            headers=self.headers,
-            timeout=30.0
-        )
+        resp = await self._rest_call(client, 'GET', "/admin/api/2023-10/locations.json")
         if resp.status_code != 200:
             logger.error(f"Failed to fetch locations: {resp.status_code} - {resp.text}")
             return None
@@ -476,28 +505,25 @@ class ShopifyService:
             return
         async with httpx.AsyncClient() as client:
             # 1) Fetch REST product to obtain inventory_item_id per variant
-            resp = await client.get(
-                f"{self.shop_url}/admin/api/2023-10/products/{product_id}.json",
-                headers=self.headers,
-                timeout=30.0
-            )
+            resp = await self._rest_call(client, 'GET', f"/admin/api/2023-10/products/{product_id}.json")
             if resp.status_code != 200:
                 logger.warning(f"Cannot fetch product {product_id} for inventory: {resp.status_code}")
                 return
             product = (resp.json() or {}).get('product') or {}
             variants = product.get('variants') or []
-            # Build SKU -> inventory_item_id map
-            sku_to_inv_item: Dict[str, int] = {}
+            # Build SKU -> variant info map
+            sku_to_variant: Dict[str, Dict[str, Any]] = {}
             for v in variants:
                 sku = v.get('sku')
-                inv_item = v.get('inventory_item_id')
-                if sku and inv_item:
-                    try:
-                        sku_to_inv_item[str(sku)] = int(inv_item)
-                    except Exception:
-                        continue
+                if not sku:
+                    continue
+                sku_to_variant[str(sku)] = {
+                    'variant_id': v.get('id'),
+                    'inventory_item_id': v.get('inventory_item_id'),
+                    'inventory_management': v.get('inventory_management')
+                }
 
-            if not sku_to_inv_item:
+            if not sku_to_variant:
                 return
 
             # 2) Get primary location
@@ -512,23 +538,56 @@ class ShopifyService:
                 qty = ev.get('inventory_quantity')
                 if sku is None or qty is None:
                     continue
-                inv_item_id = sku_to_inv_item.get(str(sku))
-                if not inv_item_id:
+                vinfo = sku_to_variant.get(str(sku))
+                if not vinfo:
                     continue
+                inv_item_id = vinfo.get('inventory_item_id')
+                variant_id = vinfo.get('variant_id')
+                inv_mgmt = vinfo.get('inventory_management')
+                # Ensure tracking is enabled
+                if not inv_mgmt or str(inv_mgmt).lower() == 'none':
+                    # Try to enable tracking on variant
+                    if variant_id:
+                        try:
+                            put_body = {"variant": {"id": variant_id, "inventory_management": "shopify"}}
+                            v_put = await self._rest_call(client, 'PUT', f"/admin/api/2023-10/variants/{variant_id}.json", json=put_body)
+                            if v_put.status_code not in (200):
+                                logger.warning(f"Failed enabling inventory_management for variant {variant_id}: {v_put.status_code} - {v_put.text}")
+                        except Exception as ee:
+                            logger.warning(f"Error enabling inventory_management for variant {variant_id}: {str(ee)}")
+                    # Also set inventory item tracked=true
+                    if inv_item_id:
+                        try:
+                            ii_body = {"inventory_item": {"id": int(inv_item_id), "tracked": True}}
+                            ii_put = await self._rest_call(client, 'PUT', f"/admin/api/2023-10/inventory_items/{int(inv_item_id)}.json", json=ii_body)
+                            if ii_put.status_code not in (200):
+                                logger.warning(f"Failed enabling tracked for inventory_item {inv_item_id}: {ii_put.status_code} - {ii_put.text}")
+                        except Exception as ee:
+                            logger.warning(f"Error enabling tracked for inventory_item {inv_item_id}: {str(ee)}")
                 # Use set endpoint to overwrite available quantity
                 set_body = {
                     "location_id": location_id,
                     "inventory_item_id": inv_item_id,
                     "available": int(qty)
                 }
-                set_resp = await client.post(
-                    f"{self.shop_url}/admin/api/2023-10/inventory_levels/set.json",
-                    headers=self.headers,
-                    json=set_body,
-                    timeout=30.0
-                )
+                set_resp = await self._rest_call(client, 'POST', "/admin/api/2023-10/inventory_levels/set.json", json=set_body)
                 if set_resp.status_code not in (200, 201):
-                    logger.warning(f"Inventory set failed for sku {sku}: {set_resp.status_code} - {set_resp.text}")
+                    # Retry once after ensuring tracking
+                    if variant_id and inv_item_id:
+                        try:
+                            # Re-ensure tracking before retry
+                            ii_body = {"inventory_item": {"id": int(inv_item_id), "tracked": True}}
+                            await self._rest_call(client, 'PUT', f"/admin/api/2023-10/inventory_items/{int(inv_item_id)}.json", json=ii_body)
+                            put_body = {"variant": {"id": variant_id, "inventory_management": "shopify"}}
+                            await self._rest_call(client, 'PUT', f"/admin/api/2023-10/variants/{variant_id}.json", json=put_body)
+                            # Retry set
+                            set_resp2 = await self._rest_call(client, 'POST', "/admin/api/2023-10/inventory_levels/set.json", json=set_body)
+                            if set_resp2.status_code not in (200, 201):
+                                logger.warning(f"Inventory set failed for sku {sku} (retry): {set_resp2.status_code} - {set_resp2.text}")
+                        except Exception as re:
+                            logger.warning(f"Inventory set retry error for sku {sku}: {str(re)}")
+                    else:
+                        logger.warning(f"Inventory set failed for sku {sku}: {set_resp.status_code} - {set_resp.text}")
 
     async def _sync_stock_next_delivery_metafield(self, product_id: int, desired_value: Optional[str]) -> None:
         """Ensure the product's StockNextDelivery metafield matches desired_value.
@@ -537,11 +596,7 @@ class ShopifyService:
         """
         async with httpx.AsyncClient() as client:
             # 1) List existing product metafields
-            list_resp = await client.get(
-                f"{self.shop_url}/admin/api/2023-10/products/{product_id}/metafields.json",
-                headers=self.headers,
-                timeout=30.0
-            )
+            list_resp = await self._rest_call(client, 'GET', f"/admin/api/2023-10/products/{product_id}/metafields.json")
             if list_resp.status_code != 200:
                 logger.warning(f"Cannot list metafields for product {product_id}: {list_resp.status_code}")
                 return
@@ -555,11 +610,7 @@ class ShopifyService:
             # 2) If desired empty -> delete if exists
             if not desired_value:
                 if target and target.get('id'):
-                    del_resp = await client.delete(
-                        f"{self.shop_url}/admin/api/2023-10/metafields/{target['id']}.json",
-                        headers=self.headers,
-                        timeout=30.0
-                    )
+                    del_resp = await self._rest_call(client, 'DELETE', f"/admin/api/2023-10/metafields/{target['id']}.json")
                     if del_resp.status_code not in (200, 204):
                         logger.warning(f"Failed deleting StockNextDelivery for product {product_id}: {del_resp.status_code} - {del_resp.text}")
                 return
@@ -573,12 +624,7 @@ class ShopifyService:
                         "type": "single_line_text_field"
                     }
                 }
-                put_resp = await client.put(
-                    f"{self.shop_url}/admin/api/2023-10/metafields/{target['id']}.json",
-                    headers=self.headers,
-                    json=put_body,
-                    timeout=30.0
-                )
+                put_resp = await self._rest_call(client, 'PUT', f"/admin/api/2023-10/metafields/{target['id']}.json", json=put_body)
                 if put_resp.status_code != 200:
                     logger.warning(f"Failed updating StockNextDelivery for product {product_id}: {put_resp.status_code} - {put_resp.text}")
                 return
@@ -594,12 +640,7 @@ class ShopifyService:
                     "value": desired_value
                 }
             }
-            post_resp = await client.post(
-                f"{self.shop_url}/admin/api/2023-10/metafields.json",
-                headers=self.headers,
-                json=post_body,
-                timeout=30.0
-            )
+            post_resp = await self._rest_call(client, 'POST', "/admin/api/2023-10/metafields.json", json=post_body)
             if post_resp.status_code not in (200, 201):
                 logger.warning(f"Failed creating StockNextDelivery for product {product_id}: {post_resp.status_code} - {post_resp.text}")
    
