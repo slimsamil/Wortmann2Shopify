@@ -4,6 +4,7 @@ from typing import List, Dict, Any, Optional
 import time as _time
 from app.core.config import settings
 from app.models.shopify import ShopifyProductWrapper
+from app.utils.helpers import gid_to_numeric_id, parse_metafield_value
 import logging
  
 logger = logging.getLogger(__name__)
@@ -73,19 +74,11 @@ class ShopifyService:
         """Fetch all products using GraphQL pagination and return REST-like dicts.
         The "limit" parameter is retained for compatibility but GraphQL will paginate at 250/page.
         """
-        async def _gid_to_numeric_id(gid: Optional[str]) -> Optional[int]:
-            if not gid or not isinstance(gid, str):
-                return None
-            # gid format: gid://shopify/Product/1234567890
-            try:
-                return int(gid.rsplit('/', 1)[-1])
-            except Exception:
-                return None
 
         def _map_product(node: Dict[str, Any]) -> Dict[str, Any]:
             # Map GraphQL product node to REST-like product dict consumed by downstream code
             mapped: Dict[str, Any] = {
-                "id": _gid_to_numeric_id(node.get("id")),
+                "id": gid_to_numeric_id(node.get("id")),
                 "handle": node.get("handle"),
                 "title": node.get("title"),
                 "body_html": node.get("bodyHtml"),
@@ -204,17 +197,10 @@ class ShopifyService:
    
     async def get_product_by_handle(self, handle: str) -> Optional[Dict[str, Any]]:
         """Get a specific product by handle via GraphQL and map to REST-like struct."""
-        def _gid_to_numeric_id(gid: Optional[str]) -> Optional[int]:
-            if not gid or not isinstance(gid, str):
-                return None
-            try:
-                return int(gid.rsplit('/', 1)[-1])
-            except Exception:
-                return None
 
         def _map(node: Dict[str, Any]) -> Dict[str, Any]:
             out = {
-                "id": _gid_to_numeric_id(node.get("id")),
+                "id": gid_to_numeric_id(node.get("id")),
                 "handle": node.get("handle"),
                 "title": node.get("title"),
                 "body_html": node.get("bodyHtml"),
@@ -1186,41 +1172,7 @@ class ShopifyService:
         # Download NDJSON and map each product node
         results_raw = await self.fetch_bulk_result_file(url)
 
-        def _gid_to_numeric_id(gid: Optional[str]) -> Optional[int]:
-            if not gid or not isinstance(gid, str):
-                return None
-            try:
-                return int(gid.rsplit('/', 1)[-1])
-            except Exception:
-                return None
 
-        def _parse_metafield_value(value):
-            """Parse metafield value, handling JSON strings"""
-            if not value:
-                return value
-            
-            # If it's already a list, return as-is
-            if isinstance(value, list):
-                return value
-                
-            # If it's a string that looks like JSON, try to parse it
-            if isinstance(value, str):
-                value = value.strip()
-                if value.startswith('[') and value.endswith(']'):
-                    try:
-                        import json
-                        return json.loads(value)
-                    except json.JSONDecodeError:
-                        return value
-                elif value.startswith('"[') and value.endswith(']"'):
-                    # Handle double-encoded JSON strings
-                    try:
-                        import json
-                        return json.loads(json.loads(value))
-                    except json.JSONDecodeError:
-                        return value
-            
-            return value
 
         def process_bulk_results(results_raw):
             # Separate nodes by type
@@ -1275,7 +1227,7 @@ class ShopifyService:
                     
                 # Build the mapped product
                 mapped_product = {
-                    "id": _gid_to_numeric_id(product_node.get("id")),
+                    "id": gid_to_numeric_id(product_node.get("id")),
                     "handle": product_node.get("handle"),
                     "title": product_node.get("title"),
                     "body_html": product_node.get("bodyHtml"),
@@ -1296,23 +1248,23 @@ class ShopifyService:
         
                 if 'verwandte_produkte' in product_node and product_node['verwandte_produkte']:
                     raw_value = product_node['verwandte_produkte'].get('value')
-                    metafields['verwandte_produkte'] = _parse_metafield_value(raw_value)
+                    metafields['verwandte_produkte'] = parse_metafield_value(raw_value)
         
                 if 'inventarbestand' in product_node and product_node['inventarbestand']:
                     raw_value = product_node['inventarbestand'].get('value')
-                    metafields['Inventarbestand'] = _parse_metafield_value(raw_value)
+                    metafields['Inventarbestand'] = parse_metafield_value(raw_value)
 
                 if 'stock_next_delivery' in product_node and product_node['stock_next_delivery']:
                     raw_value = product_node['stock_next_delivery'].get('value')
-                    metafields['StockNextDelivery'] = _parse_metafield_value(raw_value)
+                    metafields['StockNextDelivery'] = parse_metafield_value(raw_value)
 
                 if 'price_b2b_regular' in product_node and product_node['price_b2b_regular']:
                     raw_value = product_node['price_b2b_regular'].get('value')
-                    metafields['Price_B2B_Regular'] = _parse_metafield_value(raw_value)
+                    metafields['Price_B2B_Regular'] = parse_metafield_value(raw_value)
 
                 if 'price_b2b_discounted' in product_node and product_node['price_b2b_discounted']:
                     raw_value = product_node['price_b2b_discounted'].get('value')
-                    metafields['Price_B2B_Discounted'] = _parse_metafield_value(raw_value)
+                    metafields['Price_B2B_Discounted'] = parse_metafield_value(raw_value)
 
                 # Also handle metafields from edges within the product node
                 for edge in (product_node.get("metafields", {}).get("edges") or []):
@@ -1329,7 +1281,7 @@ class ShopifyService:
                 for variant_node in variants_by_parent.get(product_id, []):
                     sel = [so.get("value") for so in (variant_node.get("selectedOptions") or [])]
                     variants.append({
-                        "id": _gid_to_numeric_id(variant_node.get("id")),
+                        "id": gid_to_numeric_id(variant_node.get("id")),
                         "price": variant_node.get("price"),
                         "sku": variant_node.get("sku"),
                         "inventory_quantity": variant_node.get("inventoryQuantity"),
