@@ -424,7 +424,12 @@ class ShopifyService:
 
                     # Ensure inventory levels are updated, since Product PUT ignores inventory quantities
                     try:
-                        await self._update_inventory_for_product(product_id, product_data.get('variants', []))
+                        # Skip inventory updates when multiple variants exist (warranty-only variants)
+                        variants_list = product_data.get('variants', []) or []
+                        if len(variants_list) <= 1:
+                            await self._update_inventory_for_product(product_id, variants_list)
+                        else:
+                            logger.info(f"Skipping inventory update for {handle} due to multiple variants (warranty options)")
                     except Exception as inv_e:
                         logger.warning(f"Inventory update skipped/failed for {handle}: {str(inv_e)}")
 

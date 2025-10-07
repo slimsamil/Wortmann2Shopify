@@ -347,6 +347,15 @@ class ProductService:
             metafields=metafields,
             images=images if images else None
         )
+
+        # Business rule: if product has multiple variants (warranty options),
+        # inventory management must be None for all variants
+        try:
+            if shopify_product.variants and len(shopify_product.variants) > 1:
+                for v in shopify_product.variants:
+                    v.inventory_management = None
+        except Exception:
+            pass
         
         # Add tags if CategoryPath exists
         if product.get('CategoryPath'):
