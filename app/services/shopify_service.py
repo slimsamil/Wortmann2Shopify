@@ -402,10 +402,13 @@ class ShopifyService:
     async def update_product_by_handle(self, handle: str, product_data: Dict[str, Any]) -> Dict[str, Any]:
         """Update a product in Shopify by handle using PUT request"""
         try:
-            # First get the product to get its ID
+            # Resolve product id by handle or fallback strategies
             existing_product = await self.get_product_by_handle(handle)
             if not existing_product:
-                return {"status": "error", "message": f"Product with handle '{handle}' not found in Shopify"}
+                product_id = await self._resolve_product_id_by_handle_or_sku(handle)
+                if not product_id:
+                    return {"status": "error", "message": f"Product with handle '{handle}' not found in Shopify"}
+                existing_product = {"id": product_id, "handle": handle}
            
             product_id = existing_product['id']
             # Prepare the product data for Shopify API
@@ -471,6 +474,57 @@ class ShopifyService:
                 "status": "error",
                 "message": f"Error updating product {handle}: {str(e)}"
             }
+
+    async def _resolve_product_id_by_handle_or_sku(self, handle: str) -> Optional[int]:
+        """Try to find a product id by handle variations or SKU parsed from handle (e.g., prod-123 -> sku:123)."""
+        # 1) Try case variations of handle
+        candidates = {handle}
+        try:
+            candidates.add(handle.lower())
+            candidates.add(handle.upper())
+            if handle.startswith('prod-'):
+                pid = handle[5:]
+                candidates.add(f"prod-{pid}")
+                candidates.add(f"PROD-{pid}")
+        except Exception:
+            pass
+        for h in candidates:
+            found = await self.get_product_by_handle(h)
+            if found and found.get('id'):
+                return found['id']
+
+        # 2) Try GraphQL product search by variant SKU if handle resembles prod-<id>
+        pid_from_handle: Optional[str] = None
+        try:
+            if handle.lower().startswith('prod-'):
+                pid_from_handle = handle.split('-', 1)[1]
+        except Exception:
+            pid_from_handle = None
+
+        if not pid_from_handle:
+            return None
+
+        query = (
+            "query($q:String!){ products(first:1, query:$q){ edges { node { id handle variants(first:5){ nodes { sku } } } } } }"
+        )
+        try:
+            async with httpx.AsyncClient() as client:
+                resp = await self._graphql(client, query, {"q": f"sku:{pid_from_handle}"})
+                if resp.status_code != 200:
+                    return None
+                data = resp.json() or {}
+                edges = (((data.get('data') or {}).get('products') or {}).get('edges') or [])
+                for edge in edges:
+                    node = (edge or {}).get('node') or {}
+                    gid = node.get('id')
+                    if gid and isinstance(gid, str):
+                        try:
+                            return int(gid.rsplit('/', 1)[-1])
+                        except Exception:
+                            continue
+        except Exception:
+            return None
+        return None
 
     async def _get_primary_location_id(self, client: httpx.AsyncClient) -> Optional[int]:
         if self._primary_location_id:
