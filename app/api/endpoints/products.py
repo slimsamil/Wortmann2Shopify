@@ -38,7 +38,6 @@ async def sync_products_by_ids(
     Parameters:
     - product_ids: List of product IDs to sync
     - dry_run: If true, only analyze changes without applying them
-    - create_if_missing: If true, create products in Shopify if they don't exist
     - batch_size: Number of products to process in each batch
     
     Returns:
@@ -122,16 +121,6 @@ async def sync_products_by_ids(
                             shopify_product.product.model_dump()
                         )
                         action = "updated"
-                    else:
-                        # Create new product
-                        if request.create_if_missing:
-                            result = await shopify_service._send_single_product(
-                                httpx.AsyncClient(), shopify_product
-                            )
-                            action = "created"
-                        else:
-                            result = {"status": "skipped", "message": "Product doesn't exist and create_if_missing is false"}
-                            action = "skipped"
                     
                     if result.get("status") == "success":
                         successful_uploads += 1

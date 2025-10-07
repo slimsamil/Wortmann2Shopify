@@ -246,8 +246,8 @@ class ProductService:
                     variants.append(ShopifyVariant(
                         price=f"{price:.2f}",
                         sku=f"{product.get('ProductId')}-{sku_ext}",
-                        inventory_management='shopify',
-                        inventory_policy='continue',
+                        inventory_management=None,
+                        inventory_policy='deny',
                         inventory_quantity=0,
                         weight=weight,
                         weight_unit='kg',

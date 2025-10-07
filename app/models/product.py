@@ -56,13 +56,11 @@ class WorkflowRequest(BaseModel):
 class SyncProductRequest(BaseModel):
     product_id: str = Field(..., description="Product ID to sync (e.g., 'eu1009805' or 'prod-eu1009805')")
     dry_run: bool = Field(default=False, description="If true, only analyze changes without applying them")
-    create_if_missing: bool = Field(default=True, description="Create product in Shopify if it doesn't exist")
 
 
 class SyncProductsRequest(BaseModel):
     product_ids: List[str] = Field(..., description="List of product IDs to sync (e.g., ['eu1009805', 'eu1009806'])")
     dry_run: bool = Field(default=False, description="If true, only analyze changes without applying them")
-    create_if_missing: bool = Field(default=True, description="Create products in Shopify if they don't exist")
     batch_size: int = Field(default=5, description="Number of products to process in each batch")
 
 

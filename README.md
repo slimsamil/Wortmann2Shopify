@@ -146,7 +146,6 @@ Synchronizes multiple products by their IDs between database and Shopify.
 {
   "product_ids": ["eu1009805", "eu1009806"],
   "dry_run": false,
-  "create_if_missing": true,
   "batch_size": 10
 }
 ```
@@ -181,7 +180,6 @@ Synchronizes a single product between database and Shopify.
 {
   "product_id": "eu1009805",
   "dry_run": false,
-  "create_if_missing": true
 }
 ```
 
