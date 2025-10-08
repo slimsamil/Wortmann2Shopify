@@ -14,6 +14,7 @@ class ShopifyService:
     def __init__(self):
         self.shop_url = settings.shopify_shop_url
         self.access_token = settings.shopify_access_token
+        self.api_version = settings.shopify_api_version
         self.headers = {
             'Content-Type': 'application/json',
             'X-Shopify-Access-Token': self.access_token
@@ -25,7 +26,7 @@ class ShopifyService:
                          max_retries: int = 6) -> httpx.Response:
         """Rate-limited REST call with retry/backoff for 429/5xx.
         Enforces ~2 req/sec by spacing calls at least 0.55s apart.
-        Path should be like '/admin/api/2023-10/...'
+        Path should be like f"/admin/api/{self.api_version}/..."
         """
         # Space out requests to ~2 rps
         since = _time.time() - self._last_rest_ts
@@ -62,9 +63,11 @@ class ShopifyService:
         try:
             async with httpx.AsyncClient() as client:
                 response = await client.get(
-                    f"{self.shop_url}/admin/api/2023-10/shop.json",
+                    f"{self.shop_url}/admin/api/{self.api_version}/shop.json",
                     headers={'X-Shopify-Access-Token': self.access_token}
                 )
+                if response.status_code != 200:
+                    logger.error(f"Shopify connection test non-200: {response.status_code} - {response.text}")
                 return response.status_code == 200
         except Exception as e:
             logger.error(f"Shopify connection test failed: {str(e)}")
@@ -169,6 +172,10 @@ class ShopifyService:
                         return all_products
 
                     data = resp.json() or {}
+                    # Sanity check: GraphQL errors
+                    if isinstance(data.get("errors"), list) and data["errors"]:
+                        logger.error(f"GraphQL error on products fetch: {data['errors']}")
+                        return all_products
                     # Optional: respect throttle status
                     try:
                         throttle = ((data.get("extensions") or {}).get("cost") or {}).get("throttleStatus") or {}
@@ -245,6 +252,9 @@ class ShopifyService:
                     logger.error(f"Failed to fetch product {handle} (GraphQL): {resp.status_code} - {resp.text}")
                     return None
                 data = resp.json() or {}
+                if isinstance(data.get("errors"), list) and data["errors"]:
+                    logger.error(f"GraphQL error fetching product {handle}: {data['errors']}")
+                    return None
                 node = ((data.get("data") or {}).get("productByHandle") or None)
                 if not node:
                     return None
@@ -309,7 +319,7 @@ class ShopifyService:
                     # Update the product in Shopify
                     async with httpx.AsyncClient() as client:
                         response = await client.put(
-                            f"{self.shop_url}/admin/api/2023-10/products.json?handle={handle}",
+                            f"{self.shop_url}/admin/api/{self.api_version}/products.json?handle={handle}",
                             headers=self.headers,
                             json={"product": shopify_product_data},
                             timeout=30.0
@@ -356,7 +366,7 @@ class ShopifyService:
         try:
             async with httpx.AsyncClient() as client:
                 response = await client.put(
-                    f"{self.shop_url}/admin/api/2023-10/products/{shopify_id}.json",
+                    f"{self.shop_url}/admin/api/{self.api_version}/products/{shopify_id}.json",
                     headers=self.headers,
                     json={"product": product_data},
                     timeout=30.0
@@ -416,7 +426,7 @@ class ShopifyService:
                 shopify_product_data["product"]["images"] = product_data['images']
            
             async with httpx.AsyncClient() as client:
-                response = await self._rest_call(client, 'PUT', f"/admin/api/2023-10/products/{product_id}.json", json=shopify_product_data)
+                response = await self._rest_call(client, 'PUT', f"/admin/api/{self.api_version}/products/{product_id}.json", json=shopify_product_data)
                
                 if response.status_code == 200:
                     updated_product = response.json()
@@ -520,7 +530,8 @@ class ShopifyService:
     async def _get_primary_location_id(self, client: httpx.AsyncClient) -> Optional[int]:
         if self._primary_location_id:
             return self._primary_location_id
-        resp = await self._rest_call(client, 'GET', "/admin/api/2023-10/locations.json")
+        resp = await self._rest_call(client, 'GET', f"/admin/api/{self.api_version}/locations.json")
+        resp = resp  # keep type hints happy
         if resp.status_code != 200:
             logger.error(f"Failed to fetch locations: {resp.status_code} - {resp.text}")
             return None
@@ -550,7 +561,7 @@ class ShopifyService:
             return
         async with httpx.AsyncClient() as client:
             # 1) Fetch REST product to obtain inventory_item_id per variant
-            resp = await self._rest_call(client, 'GET', f"/admin/api/2023-10/products/{product_id}.json")
+            resp = await self._rest_call(client, 'GET', f"/admin/api/{self.api_version}/products/{product_id}.json")
             if resp.status_code != 200:
                 logger.warning(f"Cannot fetch product {product_id} for inventory: {resp.status_code}")
                 return
@@ -595,7 +606,7 @@ class ShopifyService:
                     if variant_id:
                         try:
                             put_body = {"variant": {"id": variant_id, "inventory_management": "shopify"}}
-                            v_put = await self._rest_call(client, 'PUT', f"/admin/api/2023-10/variants/{variant_id}.json", json=put_body)
+                            v_put = await self._rest_call(client, 'PUT', f"/admin/api/{self.api_version}/variants/{variant_id}.json", json=put_body)
                             if v_put.status_code not in (200):
                                 logger.warning(f"Failed enabling inventory_management for variant {variant_id}: {v_put.status_code} - {v_put.text}")
                         except Exception as ee:
@@ -604,7 +615,7 @@ class ShopifyService:
                     if inv_item_id:
                         try:
                             ii_body = {"inventory_item": {"id": int(inv_item_id), "tracked": True}}
-                            ii_put = await self._rest_call(client, 'PUT', f"/admin/api/2023-10/inventory_items/{int(inv_item_id)}.json", json=ii_body)
+                            ii_put = await self._rest_call(client, 'PUT', f"/admin/api/{self.api_version}/inventory_items/{int(inv_item_id)}.json", json=ii_body)
                             if ii_put.status_code not in (200):
                                 logger.warning(f"Failed enabling tracked for inventory_item {inv_item_id}: {ii_put.status_code} - {ii_put.text}")
                         except Exception as ee:
@@ -615,18 +626,18 @@ class ShopifyService:
                     "inventory_item_id": inv_item_id,
                     "available": int(qty)
                 }
-                set_resp = await self._rest_call(client, 'POST', "/admin/api/2023-10/inventory_levels/set.json", json=set_body)
+                set_resp = await self._rest_call(client, 'POST', f"/admin/api/{self.api_version}/inventory_levels/set.json", json=set_body)
                 if set_resp.status_code not in (200, 201):
                     # Retry once after ensuring tracking
                     if variant_id and inv_item_id:
                         try:
                             # Re-ensure tracking before retry
                             ii_body = {"inventory_item": {"id": int(inv_item_id), "tracked": True}}
-                            await self._rest_call(client, 'PUT', f"/admin/api/2023-10/inventory_items/{int(inv_item_id)}.json", json=ii_body)
+                            await self._rest_call(client, 'PUT', f"/admin/api/{self.api_version}/inventory_items/{int(inv_item_id)}.json", json=ii_body)
                             put_body = {"variant": {"id": variant_id, "inventory_management": "shopify"}}
-                            await self._rest_call(client, 'PUT', f"/admin/api/2023-10/variants/{variant_id}.json", json=put_body)
+                            await self._rest_call(client, 'PUT', f"/admin/api/{self.api_version}/variants/{variant_id}.json", json=put_body)
                             # Retry set
-                            set_resp2 = await self._rest_call(client, 'POST', "/admin/api/2023-10/inventory_levels/set.json", json=set_body)
+                            set_resp2 = await self._rest_call(client, 'POST', f"/admin/api/{self.api_version}/inventory_levels/set.json", json=set_body)
                             if set_resp2.status_code not in (200, 201):
                                 logger.warning(f"Inventory set failed for sku {sku} (retry): {set_resp2.status_code} - {set_resp2.text}")
                         except Exception as re:
@@ -641,7 +652,7 @@ class ShopifyService:
         """
         async with httpx.AsyncClient() as client:
             # 1) List existing product metafields
-            list_resp = await self._rest_call(client, 'GET', f"/admin/api/2023-10/products/{product_id}/metafields.json")
+            list_resp = await self._rest_call(client, 'GET', f"/admin/api/{self.api_version}/products/{product_id}/metafields.json")
             if list_resp.status_code != 200:
                 logger.warning(f"Cannot list metafields for product {product_id}: {list_resp.status_code}")
                 return
@@ -655,7 +666,7 @@ class ShopifyService:
             # 2) If desired empty -> delete if exists
             if not desired_value:
                 if target and target.get('id'):
-                    del_resp = await self._rest_call(client, 'DELETE', f"/admin/api/2023-10/metafields/{target['id']}.json")
+                    del_resp = await self._rest_call(client, 'DELETE', f"/admin/api/{self.api_version}/metafields/{target['id']}.json")
                     if del_resp.status_code not in (200, 204):
                         logger.warning(f"Failed deleting StockNextDelivery for product {product_id}: {del_resp.status_code} - {del_resp.text}")
                 return
@@ -669,7 +680,7 @@ class ShopifyService:
                         "type": "single_line_text_field"
                     }
                 }
-                put_resp = await self._rest_call(client, 'PUT', f"/admin/api/2023-10/metafields/{target['id']}.json", json=put_body)
+                put_resp = await self._rest_call(client, 'PUT', f"/admin/api/{self.api_version}/metafields/{target['id']}.json", json=put_body)
                 if put_resp.status_code != 200:
                     logger.warning(f"Failed updating StockNextDelivery for product {product_id}: {put_resp.status_code} - {put_resp.text}")
                 return
@@ -685,7 +696,7 @@ class ShopifyService:
                     "value": desired_value
                 }
             }
-            post_resp = await self._rest_call(client, 'POST', "/admin/api/2023-10/metafields.json", json=post_body)
+            post_resp = await self._rest_call(client, 'POST', f"/admin/api/{self.api_version}/metafields.json", json=post_body)
             if post_resp.status_code not in (200, 201):
                 logger.warning(f"Failed creating StockNextDelivery for product {product_id}: {post_resp.status_code} - {post_resp.text}")
    
@@ -754,7 +765,7 @@ class ShopifyService:
         try:
             async with httpx.AsyncClient() as client:
                 response = await client.delete(
-                    f"{self.shop_url}/admin/api/2023-10/products/{product_id}.json",
+                    f"{self.shop_url}/admin/api/{self.api_version}/products/{product_id}.json",
                     headers=self.headers,
                     timeout=30.0
                 )
@@ -1034,7 +1045,7 @@ class ShopifyService:
         if variables is not None:
             payload["variables"] = variables
         return await client.post(
-            f"{self.shop_url}/admin/api/2023-10/graphql.json",
+            f"{self.shop_url}/admin/api/{self.api_version}/graphql.json",
             headers={
                 'Content-Type': 'application/json',
                 'X-Shopify-Access-Token': self.access_token
@@ -1058,7 +1069,11 @@ class ShopifyService:
         )
         async with httpx.AsyncClient() as client:
             resp = await self._graphql(client, mutation, {"query": bulk_query})
-            data = resp.json()
+            data = resp.json() or {}
+            # Sanity: log userErrors if present
+            ue = (((data.get('data') or {}).get('bulkOperationRunQuery') or {}).get('userErrors') or [])
+            if ue:
+                logger.error(f"Bulk handles start userErrors: {ue}")
             return data
 
     async def start_products_bulk_full(self) -> Dict[str, Any]:
@@ -1099,7 +1114,11 @@ class ShopifyService:
         )
         async with httpx.AsyncClient() as client:
             resp = await self._graphql(client, mutation, {"query": bulk_query})
-            return resp.json()
+            data = resp.json() or {}
+            ue = (((data.get('data') or {}).get('bulkOperationRunQuery') or {}).get('userErrors') or [])
+            if ue:
+                logger.error(f"Bulk full start userErrors: {ue}")
+            return data
 
     async def get_current_bulk_operation(self) -> Dict[str, Any]:
         """Query the current bulk operation status."""
@@ -1108,7 +1127,13 @@ class ShopifyService:
         )
         async with httpx.AsyncClient() as client:
             resp = await self._graphql(client, query)
-            return resp.json()
+            data = resp.json() or {}
+            op = (data.get('data') or {}).get('currentBulkOperation') or {}
+            status = op.get('status')
+            error_code = op.get('errorCode')
+            if status and status not in ('COMPLETED', 'RUNNING', 'CREATED'):  # surface unexpected
+                logger.warning(f"Bulk op status: {status} code: {error_code}")
+            return data
 
     async def fetch_bulk_result_file(self, url: str) -> List[Dict[str, Any]]:
         """Download and parse the bulk operation result (JSONL)."""
@@ -1326,7 +1351,7 @@ class ShopifyService:
         """Send a single product to Shopify"""
         try:
             response = await client.post(
-                f"{self.shop_url}/admin/api/2023-10/products.json",
+                f"{self.shop_url}/admin/api/{self.api_version}/products.json",
                 headers=self.headers,
                 json={"product": product.product.model_dump()},
                 timeout=30.0

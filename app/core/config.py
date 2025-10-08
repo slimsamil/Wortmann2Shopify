@@ -13,6 +13,7 @@ class Settings(BaseSettings):
     # Shopify
     shopify_shop_url: str = Field("https://your-shop.myshopify.com", env="SHOPIFY_SHOP_URL")
     shopify_access_token: str = Field("your_access_token", env="SHOPIFY_ACCESS_TOKEN")
+    shopify_api_version: str = Field("2024-10", env="SHOPIFY_API_VERSION")
     
     # Wortmann FTP / Files
     wortmann_ftp_host: str = Field("", env="WORTMANN_FTP_HOST")
