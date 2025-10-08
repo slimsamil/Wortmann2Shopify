@@ -364,6 +364,14 @@ class ShopifyService:
     async def update_product(self, shopify_id: int, product_data: Dict[str, Any]) -> Dict[str, Any]:
         """Update an existing product in Shopify"""
         try:
+            # Ensure inventory_management is set correctly for multiple variants (warranty options)
+            variants = product_data.get('variants', []) or []
+            if len(variants) > 1:
+                for variant in variants:
+                    if isinstance(variant, dict):
+                        variant['inventory_management'] = None
+                logger.info(f"Set inventory_management=None for all variants in product {shopify_id} (multiple variants detected)")
+            
             async with httpx.AsyncClient() as client:
                 response = await client.put(
                     f"{self.shop_url}/admin/api/{self.api_version}/products/{shopify_id}.json",
@@ -408,6 +416,15 @@ class ShopifyService:
            
             product_id = existing_product['id']
             # Prepare the product data for Shopify API
+            variants = product_data.get('variants', []) or []
+            
+            # Ensure inventory_management is set correctly for multiple variants (warranty options)
+            if len(variants) > 1:
+                for variant in variants:
+                    if isinstance(variant, dict):
+                        variant['inventory_management'] = None
+                logger.info(f"Set inventory_management=None for all variants in product {handle} (multiple variants detected)")
+            
             shopify_product_data = {
                 "product": {
                     "title": product_data.get('title'),
@@ -415,7 +432,7 @@ class ShopifyService:
                     "vendor": product_data.get('vendor'),
                     "product_type": product_data.get('product_type'),
                     "tags": product_data.get('tags'),
-                    "variants": product_data.get('variants', []),
+                    "variants": variants,
                     "options": product_data.get('options', []),
                     "metafields": product_data.get('metafields', [])
                 }
@@ -567,6 +584,13 @@ class ShopifyService:
                 return
             product = (resp.json() or {}).get('product') or {}
             variants = product.get('variants') or []
+            
+            # Check if this product has multiple variants (warranty options)
+            has_multiple_variants = len(variants) > 1
+            if has_multiple_variants:
+                logger.info(f"Skipping inventory update for product {product_id} - has multiple variants (warranty options), inventory_management should be None")
+                return
+            
             # Build SKU -> variant info map
             sku_to_variant: Dict[str, Dict[str, Any]] = {}
             for v in variants:
@@ -600,7 +624,7 @@ class ShopifyService:
                 inv_item_id = vinfo.get('inventory_item_id')
                 variant_id = vinfo.get('variant_id')
                 inv_mgmt = vinfo.get('inventory_management')
-                # Ensure tracking is enabled
+                # Ensure tracking is enabled (only for single variant products)
                 if not inv_mgmt or str(inv_mgmt).lower() == 'none':
                     # Try to enable tracking on variant
                     if variant_id:
