@@ -571,39 +571,36 @@ class ShopifyService:
         return self._primary_location_id
 
     async def _update_inventory_for_product(self, product_id: int, expected_variants: List[Dict[str, Any]]):
-        """Update inventory levels for a product's variants by matching on SKU.
+        """Update inventory levels for a single-variant product by matching on SKU.
         expected_variants should contain 'sku' and 'inventory_quantity' values from our payload.
+        This assumes single variant per product - multi-variant logic handled elsewhere.
         """
         if not expected_variants:
             return
+        
         async with httpx.AsyncClient() as client:
-            # 1) Fetch REST product to obtain inventory_item_id per variant
+            # 1) Fetch REST product to obtain inventory_item_id for the variant
             resp = await self._rest_call(client, 'GET', f"/admin/api/{self.api_version}/products/{product_id}.json")
             if resp.status_code != 200:
                 logger.warning(f"Cannot fetch product {product_id} for inventory: {resp.status_code}")
                 return
+            
             product = (resp.json() or {}).get('product') or {}
             variants = product.get('variants') or []
             
-            # Check if this product has multiple variants (warranty options)
-            has_multiple_variants = len(variants) > 1
-            if has_multiple_variants:
-                logger.info(f"Skipping inventory update for product {product_id} - has multiple variants (warranty options), inventory_management should be None")
+            if not variants:
+                logger.warning(f"Product {product_id} has no variants")
                 return
             
-            # Build SKU -> variant info map
-            sku_to_variant: Dict[str, Dict[str, Any]] = {}
-            for v in variants:
-                sku = v.get('sku')
-                if not sku:
-                    continue
-                sku_to_variant[str(sku)] = {
-                    'variant_id': v.get('id'),
-                    'inventory_item_id': v.get('inventory_item_id'),
-                    'inventory_management': v.get('inventory_management')
-                }
-
-            if not sku_to_variant:
+            # Get the single variant (first one since this is single-variant product)
+            variant = variants[0]
+            variant_id = variant.get('id')
+            inventory_item_id = variant.get('inventory_item_id')
+            inventory_management = variant.get('inventory_management')
+            sku = variant.get('sku')
+            
+            if not inventory_item_id:
+                logger.warning(f"Product {product_id} variant has no inventory_item_id")
                 return
 
             # 2) Get primary location
@@ -612,62 +609,81 @@ class ShopifyService:
                 logger.warning("No primary location id available; skipping inventory update")
                 return
 
-            # 3) For each expected variant with sku and inventory_quantity, set level
+            # 3) Get the expected quantity from our payload
+            expected_qty = None
             for ev in expected_variants:
-                sku = ev.get('sku')
+                payload_sku = ev.get('sku')
                 qty = ev.get('inventory_quantity')
-                if sku is None or qty is None:
-                    continue
-                vinfo = sku_to_variant.get(str(sku))
-                if not vinfo:
-                    continue
-                inv_item_id = vinfo.get('inventory_item_id')
-                variant_id = vinfo.get('variant_id')
-                inv_mgmt = vinfo.get('inventory_management')
-                # Ensure tracking is enabled (only for single variant products)
-                if not inv_mgmt or str(inv_mgmt).lower() == 'none':
-                    # Try to enable tracking on variant
-                    if variant_id:
-                        try:
-                            put_body = {"variant": {"id": variant_id, "inventory_management": "shopify"}}
-                            v_put = await self._rest_call(client, 'PUT', f"/admin/api/{self.api_version}/variants/{variant_id}.json", json=put_body)
-                            if v_put.status_code not in (200):
-                                logger.warning(f"Failed enabling inventory_management for variant {variant_id}: {v_put.status_code} - {v_put.text}")
-                        except Exception as ee:
-                            logger.warning(f"Error enabling inventory_management for variant {variant_id}: {str(ee)}")
-                    # Also set inventory item tracked=true
-                    if inv_item_id:
-                        try:
-                            ii_body = {"inventory_item": {"id": int(inv_item_id), "tracked": True}}
-                            ii_put = await self._rest_call(client, 'PUT', f"/admin/api/{self.api_version}/inventory_items/{int(inv_item_id)}.json", json=ii_body)
-                            if ii_put.status_code not in (200):
-                                logger.warning(f"Failed enabling tracked for inventory_item {inv_item_id}: {ii_put.status_code} - {ii_put.text}")
-                        except Exception as ee:
-                            logger.warning(f"Error enabling tracked for inventory_item {inv_item_id}: {str(ee)}")
-                # Use set endpoint to overwrite available quantity
-                set_body = {
-                    "location_id": location_id,
-                    "inventory_item_id": inv_item_id,
-                    "available": int(qty)
-                }
-                set_resp = await self._rest_call(client, 'POST', f"/admin/api/{self.api_version}/inventory_levels/set.json", json=set_body)
+                # Match by SKU if available, otherwise use first entry
+                if not sku or str(payload_sku) == str(sku) or not payload_sku:
+                    expected_qty = qty
+                    break
+            
+            if expected_qty is None:
+                logger.warning(f"No inventory_quantity found in payload for product {product_id}")
+                return
+
+            # 4) Ensure inventory tracking is enabled
+            tracking_enabled = inventory_management and str(inventory_management).lower() != 'none'
+            
+            if not tracking_enabled:
+                # Enable inventory management on variant
+                try:
+                    put_body = {"variant": {"id": variant_id, "inventory_management": "shopify"}}
+                    v_put = await self._rest_call(
+                        client, 
+                        'PUT', 
+                        f"/admin/api/{self.api_version}/products/{product_id}/variants/{variant_id}.json", 
+                        json=put_body
+                    )
+                    if v_put.status_code not in (200, 201):
+                        logger.warning(f"Failed enabling inventory_management for variant {variant_id}: {v_put.status_code} - {v_put.text}")
+                        return
+                except Exception as e:
+                    logger.warning(f"Error enabling inventory_management for variant {variant_id}: {str(e)}")
+                    return
+                
+                # Enable tracking on inventory item
+                try:
+                    ii_body = {"inventory_item": {"id": int(inventory_item_id), "tracked": True}}
+                    ii_put = await self._rest_call(
+                        client, 
+                        'PUT', 
+                        f"/admin/api/{self.api_version}/inventory_items/{int(inventory_item_id)}.json", 
+                        json=ii_body
+                    )
+                    if ii_put.status_code not in (200, 201):
+                        logger.warning(f"Failed enabling tracked for inventory_item {inventory_item_id}: {ii_put.status_code} - {ii_put.text}")
+                        return
+                except Exception as e:
+                    logger.warning(f"Error enabling tracked for inventory_item {inventory_item_id}: {str(e)}")
+                    return
+
+            # 5) Set inventory level
+            set_body = {
+                "location_id": location_id,
+                "inventory_item_id": inventory_item_id,
+                "available": int(expected_qty)
+            }
+            
+            try:
+                set_resp = await self._rest_call(
+                    client, 
+                    'POST', 
+                    "/admin/api/{self.api_version}/inventory_levels/set.json", 
+                    json=set_body
+                )
+                
                 if set_resp.status_code not in (200, 201):
-                    # Retry once after ensuring tracking
-                    if variant_id and inv_item_id:
-                        try:
-                            # Re-ensure tracking before retry
-                            ii_body = {"inventory_item": {"id": int(inv_item_id), "tracked": True}}
-                            await self._rest_call(client, 'PUT', f"/admin/api/{self.api_version}/inventory_items/{int(inv_item_id)}.json", json=ii_body)
-                            put_body = {"variant": {"id": variant_id, "inventory_management": "shopify"}}
-                            await self._rest_call(client, 'PUT', f"/admin/api/{self.api_version}/variants/{variant_id}.json", json=put_body)
-                            # Retry set
-                            set_resp2 = await self._rest_call(client, 'POST', f"/admin/api/{self.api_version}/inventory_levels/set.json", json=set_body)
-                            if set_resp2.status_code not in (200, 201):
-                                logger.warning(f"Inventory set failed for sku {sku} (retry): {set_resp2.status_code} - {set_resp2.text}")
-                        except Exception as re:
-                            logger.warning(f"Inventory set retry error for sku {sku}: {str(re)}")
-                    else:
-                        logger.warning(f"Inventory set failed for sku {sku}: {set_resp.status_code} - {set_resp.text}")
+                    logger.warning(
+                        f"Inventory set failed for product {product_id}, variant {variant_id}, "
+                        f"inventory_item {inventory_item_id}: {set_resp.status_code} - {set_resp.text}"
+                    )
+                else:
+                    logger.info(f"Successfully updated inventory for product {product_id} to {expected_qty}")
+                    
+            except Exception as e:
+                logger.warning(f"Exception setting inventory for product {product_id}: {str(e)}")
 
     async def _sync_stock_next_delivery_metafield(self, product_id: int, desired_value: Optional[str]) -> None:
         """Ensure the product's StockNextDelivery metafield matches desired_value.
