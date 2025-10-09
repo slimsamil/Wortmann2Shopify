@@ -670,7 +670,7 @@ class ShopifyService:
                 set_resp = await self._rest_call(
                     client, 
                     'POST', 
-                    "/admin/api/{self.api_version}/inventory_levels/set.json", 
+                    f"/admin/api/{self.api_version}/inventory_levels/set.json", 
                     json=set_body
                 )
                 
