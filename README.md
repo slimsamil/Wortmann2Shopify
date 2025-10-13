@@ -2,7 +2,7 @@
 
 A comprehensive FastAPI application that synchronizes product data between Microsoft SQL Server databases and Shopify stores. This system supports bulk product imports, individual product synchronization, warranty management, and automated data processing from Wortmann FTP servers.
 
-## 📋 Table of Contents
+## Table of Contents
 
 - [Overview](#overview)
 - [Features](#features)
@@ -15,10 +15,14 @@ A comprehensive FastAPI application that synchronizes product data between Micro
 - [Docker Deployment](#docker-deployment)
 - [Troubleshooting](#troubleshooting)
 - [Development](#development)
+- [Performance Optimization](#performance-optimization)
+- [Security Considerations](#security-considerations)
+- [Support](#support)
+- [License](#license)
 
 ---
 
-## 🔍 Overview
+## Overview
 
 This application serves as a bridge between your Microsoft SQL Server product database and Shopify e-commerce platform. It handles:
 
@@ -31,16 +35,16 @@ This application serves as a bridge between your Microsoft SQL Server product da
 
 ### Key Benefits
 
-- ✅ **Automated Workflows**: Reduces manual data entry and errors
-- ✅ **Scalable Architecture**: Handles thousands of products efficiently
-- ✅ **Flexible Configuration**: Supports various product types and warranty systems
-- ✅ **Error Handling**: Comprehensive error handling and retry mechanisms
-- ✅ **Monitoring**: Built-in health checks and connection testing
-- ✅ **Docker Ready**: Easy deployment with Docker Compose
+- **Automated Workflows**: Reduces manual data entry and errors
+- **Scalable Architecture**: Handles thousands of products efficiently
+- **Flexible Configuration**: Supports various product types and warranty systems
+- **Error Handling**: Comprehensive error handling and retry mechanisms
+- **Monitoring**: Built-in health checks and connection testing
+- **Docker Ready**: Easy deployment with Docker Compose
 
 ---
 
-## 🚀 Features
+## Features
 
 ### Core Functionality
 - **Product CRUD Operations**: Create, read, update, delete products
@@ -50,8 +54,8 @@ This application serves as a bridge between your Microsoft SQL Server product da
 - **Data Validation**: Comprehensive input validation using Pydantic models
 
 ### Integration Features
-- **Shopify REST API**: Full integration with Shopify's REST API
-- **Shopify GraphQL**: Advanced queries for bulk operations
+- **Shopify REST API**: Full integration with [Shopify's REST API](https://shopify.dev/docs/api/admin-rest)
+- **Shopify GraphQL**: Advanced queries for bulk operations using [Shopify GraphQL Admin API](https://shopify.dev/docs/api/admin-graphql)
 - **Microsoft SQL Server**: Direct database connectivity with ODBC
 - **FTP Import**: Automated data import from Wortmann FTP servers
 
@@ -63,7 +67,7 @@ This application serves as a bridge between your Microsoft SQL Server product da
 
 ---
 
-## 🏗️ Architecture
+## Architecture
 
 ### Project Structure
 
@@ -93,11 +97,11 @@ app/
 
 ### Technology Stack
 
-- **FastAPI**: Modern, fast web framework for building APIs
-- **Pydantic**: Data validation and settings management
-- **PyODBC**: Microsoft SQL Server connectivity
-- **HTTPX**: Async HTTP client for API calls
-- **Docker**: Containerization for easy deployment
+- **[FastAPI](https://fastapi.tiangolo.com/)**: Modern, fast web framework for building APIs
+- **[Pydantic](https://docs.pydantic.dev/)**: Data validation and settings management
+- **[PyODBC](https://github.com/mkleehammer/pyodbc)**: Microsoft SQL Server connectivity
+- **[HTTPX](https://www.python-httpx.org/)**: Async HTTP client for API calls
+- **[Docker](https://www.docker.com/)**: Containerization for easy deployment
 
 ### Data Flow
 
@@ -117,14 +121,14 @@ app/
 
 ---
 
-## 🛠️ Installation & Setup
+## Installation & Setup
 
 ### Prerequisites
 
-- Python 3.11 or higher
+- [Python 3.11](https://www.python.org/downloads/) or higher
 - Microsoft SQL Server (local or remote)
-- Shopify Partner Account or Custom App
-- Git
+- [Shopify Partner Account](https://www.shopify.com/partners) or Custom App
+- [Git](https://git-scm.com/)
 
 ### 1. Clone Repository
 
@@ -154,7 +158,7 @@ pip install -r requirements.txt
 ### 4. Install Microsoft ODBC Driver
 
 #### Windows
-1. Download **Microsoft ODBC Driver 18 for SQL Server** from Microsoft
+1. Download **[Microsoft ODBC Driver 18 for SQL Server](https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server)** from Microsoft
 2. Run the installation
 3. Verify: `odbcad32.exe`
 
@@ -175,7 +179,7 @@ ACCEPT_EULA=Y brew install msodbcsql18
 
 ---
 
-## ⚙️ Configuration
+## Configuration
 
 ### Environment Variables
 
@@ -215,9 +219,9 @@ VERSION=1.0.0
 
 ### Shopify Access Token Setup
 
-1. Go to your Shopify Admin Panel
+1. Go to your [Shopify Admin Panel](https://admin.shopify.com/)
 2. Navigate to Apps → Manage apps and sales channels
-3. Create a new private app or custom app
+3. Create a new private app or [custom app](https://help.shopify.com/en/manual/apps/app-types/custom-apps)
 4. Configure required permissions:
    - Read/Write Products
    - Read/Write Product Images
@@ -276,7 +280,7 @@ CREATE TABLE Garantien (
 
 ---
 
-## 📡 API Documentation
+## API Documentation
 
 ### Base URL
 ```
@@ -292,7 +296,7 @@ All endpoints require proper Shopify access token configuration. The API uses th
 
 ---
 
-## 📊 Data Models
+## Data Models
 
 ### Product Models
 
@@ -351,7 +355,7 @@ class SyncProductsRequest(BaseModel):
 
 ---
 
-## 🎯 Usage Examples
+## Usage Examples
 
 ### 1. Health Check
 
@@ -530,7 +534,7 @@ curl -X POST http://localhost:8000/api/v1/wortmann/wortmann-import
 
 ---
 
-## 🐳 Docker Deployment
+## Docker Deployment
 
 ### Docker Compose Setup
 
@@ -563,23 +567,23 @@ The `docker-compose.yml` includes:
 For production deployment:
 
 1. **Security**:
-   - Use Docker secrets for sensitive data
+   - Use [Docker secrets](https://docs.docker.com/engine/swarm/secrets/) for sensitive data
    - Configure proper CORS origins
    - Use HTTPS with SSL certificates
 
 2. **Monitoring**:
-   - Set up log aggregation (ELK stack)
+   - Set up log aggregation ([ELK stack](https://www.elastic.co/elastic-stack))
    - Configure health check monitoring
    - Set up alerting for failures
 
 3. **Scaling**:
-   - Use Docker Swarm or Kubernetes
+   - Use [Docker Swarm](https://docs.docker.com/engine/swarm/) or [Kubernetes](https://kubernetes.io/)
    - Configure load balancing
    - Set up database connection pooling
 
 ---
 
-## 🔧 Troubleshooting
+## Troubleshooting
 
 ### Common Issues
 
@@ -601,7 +605,7 @@ For production deployment:
 1. Verify access token in `.env` file
 2. Check app permissions in Shopify admin
 3. Ensure token hasn't expired
-4. Test with Shopify API directly
+4. Test with [Shopify API](https://shopify.dev/docs/api) directly
 
 **Error**: `429 Too Many Requests`
 
@@ -655,7 +659,7 @@ For production deployment:
 
 ---
 
-## 👨‍💻 Development
+## Development
 
 ### Local Development Setup
 
@@ -702,7 +706,7 @@ For production deployment:
 
 ---
 
-## 📈 Performance Optimization
+## Performance Optimization
 
 ### Batch Processing
 - Use appropriate batch sizes (10-50 products per batch)
@@ -715,7 +719,7 @@ For production deployment:
 - Implement query result caching where appropriate
 
 ### API Rate Limiting
-- Respect Shopify's rate limits (2 requests per second)
+- Respect [Shopify's rate limits](https://shopify.dev/docs/api/usage/rate-limits) (2 requests per second)
 - Implement exponential backoff for retries
 - Use GraphQL for bulk operations when possible
 
@@ -726,7 +730,7 @@ For production deployment:
 
 ---
 
-## 🔒 Security Considerations
+## Security Considerations
 
 ### API Security
 - Use HTTPS in production
@@ -744,11 +748,11 @@ For production deployment:
 - Use minimal required permissions
 - Rotate access tokens regularly
 - Monitor API usage
-- Implement webhook validation
+- Implement [webhook validation](https://shopify.dev/docs/apps/build/webhooks/subscribe/https#step-5-verify-the-webhook)
 
 ---
 
-## 📞 Support
+## Support
 
 ### Getting Help
 
@@ -768,569 +772,6 @@ When reporting issues, include:
 
 ---
 
-## 📄 License
+## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
-
----
-
-# Wortmann2Shopify - Produktsynchronisations-API (Deutsch)
-
-Eine umfassende FastAPI-Anwendung, die Produktdaten zwischen Microsoft SQL Server-Datenbanken und Shopify-Stores synchronisiert. Dieses System unterstützt Bulk-Produktimporte, individuelle Produktsynchronisation, Garantieverwaltung und automatisierte Datenverarbeitung von Wortmann FTP-Servern.
-
-## 📋 Inhaltsverzeichnis
-
-- [Überblick](#überblick)
-- [Funktionen](#funktionen)
-- [Architektur](#architektur)
-- [Installation & Einrichtung](#installation--einrichtung)
-- [Konfiguration](#konfiguration)
-- [API-Dokumentation](#api-dokumentation)
-- [Datenmodelle](#datenmodelle)
-- [Verwendungsbeispiele](#verwendungsbeispiele)
-- [Docker-Bereitstellung](#docker-bereitstellung)
-- [Fehlerbehebung](#fehlerbehebung)
-- [Entwicklung](#entwicklung)
-
----
-
-## 🔍 Überblick
-
-Diese Anwendung dient als Brücke zwischen Ihrer Microsoft SQL Server-Produktdatenbank und der Shopify E-Commerce-Plattform. Sie behandelt:
-
-- **Produktsynchronisation**: Bidirektionale Synchronisation zwischen Datenbank und Shopify
-- **Bildverwaltung**: Automatische Bildverarbeitung und Upload zu Shopify
-- **Garantiesystem**: Komplexe Garantiegruppenverwaltung mit Preisberechnungen
-- **Batch-Verarbeitung**: Effiziente Handhabung großer Produktkataloge
-- **Datenimport**: Automatisierter Import von Wortmann FTP-Servern
-- **Echtzeit-Updates**: Individuelle Produktupdates und Synchronisation
-
-### Hauptvorteile
-
-- ✅ **Automatisierte Workflows**: Reduziert manuelle Dateneingabe und Fehler
-- ✅ **Skalierbare Architektur**: Behandelt Tausende von Produkten effizient
-- ✅ **Flexible Konfiguration**: Unterstützt verschiedene Produkttypen und Garantiesysteme
-- ✅ **Fehlerbehandlung**: Umfassende Fehlerbehandlung und Wiederholungsmechanismen
-- ✅ **Überwachung**: Eingebaute Gesundheitsprüfungen und Verbindungstests
-- ✅ **Docker-Ready**: Einfache Bereitstellung mit Docker Compose
-
----
-
-## 🚀 Funktionen
-
-### Kernfunktionalität
-- **Produkt CRUD-Operationen**: Erstellen, lesen, aktualisieren, löschen von Produkten
-- **Bulk-Operationen**: Verarbeitung mehrerer Produkte in Batches
-- **Bildverarbeitung**: Konvertierung von Hex/Roh-Bilddaten zu Base64 für Shopify
-- **Garantieverwaltung**: Komplexe Garantiegruppenberechnungen mit Preisaufschlägen
-- **Datenvalidierung**: Umfassende Eingabevalidierung mit Pydantic-Modellen
-
-### Integrationsfunktionen
-- **Shopify REST API**: Vollständige Integration mit Shopifys REST API
-- **Shopify GraphQL**: Erweiterte Abfragen für Bulk-Operationen
-- **Microsoft SQL Server**: Direkte Datenbankverbindung mit ODBC
-- **FTP-Import**: Automatisierter Datenimport von Wortmann FTP-Servern
-
-### Betriebsfunktionen
-- **Rate Limiting**: Eingebaute Shopify API Rate-Limiting-Compliance
-- **Fehlerwiederherstellung**: Automatische Wiederholungsmechanismen mit exponentiellem Backoff
-- **Gesundheitsüberwachung**: API- und Datenbankverbindungs-Gesundheitsprüfungen
-- **Protokollierung**: Umfassende Protokollierung für Debugging und Überwachung
-
----
-
-## 🏗️ Architektur
-
-### Projektstruktur
-
-```
-app/
-├── api/
-│   ├── deps.py              # Dependency Injection
-│   └── endpoints/
-│       ├── health.py        # Gesundheitsprüfungs-Endpunkte
-│       ├── products.py      # Produktverwaltungs-Endpunkte
-│       └── wortmann.py      # Wortmann-Import-Endpunkte
-├── core/
-│   ├── config.py           # Anwendungskonfiguration
-│   └── database.py         # Datenbankverbindungsverwaltung
-├── models/
-│   ├── product.py          # Produktdatenmodelle
-│   └── shopify.py          # Shopify-spezifische Modelle
-├── services/
-│   ├── database_service.py # Datenbankoperationen
-│   ├── product_service.py  # Produktverarbeitungslogik
-│   ├── shopify_service.py  # Shopify API-Integration
-│   └── wortmann_service.py # Wortmann FTP-Import
-├── utils/
-│   └── helpers.py          # Utility-Funktionen
-└── main.py                 # FastAPI-Anwendungseinstiegspunkt
-```
-
-### Technologie-Stack
-
-- **FastAPI**: Modernes, schnelles Web-Framework für API-Entwicklung
-- **Pydantic**: Datenvalidierung und Einstellungsverwaltung
-- **PyODBC**: Microsoft SQL Server-Konnektivität
-- **HTTPX**: Async HTTP-Client für API-Aufrufe
-- **Docker**: Containerisierung für einfache Bereitstellung
-
-### Datenfluss
-
-1. **Datenquellen**:
-   - Microsoft SQL Server (`WortmannProdukte`, `BilderShopify`, `Garantien` Tabellen)
-   - Wortmann FTP-Server (CSV-Dateien und Bildarchive)
-
-2. **Verarbeitungspipeline**:
-   - Datenextraktion aus mehreren Quellen
-   - Datenzusammenführung und -transformation
-   - Shopify-Format-Konvertierung
-   - Batch-Verarbeitung mit Rate Limiting
-
-3. **Ausgabe**:
-   - Shopify Store-Produktkatalog
-   - Umfassende Protokollierung und Fehlerberichterstattung
-
----
-
-## 🛠️ Installation & Einrichtung
-
-### Voraussetzungen
-
-- Python 3.11 oder höher
-- Microsoft SQL Server (lokal oder remote)
-- Shopify Partner Account oder Custom App
-- Git
-
-### 1. Repository klonen
-
-```bash
-git clone <repository-url>
-cd Wortmann2Shopify
-```
-
-### 2. Virtuelle Umgebung erstellen
-
-```bash
-python -m venv venv
-
-# Windows
-.\venv\Scripts\activate
-
-# Linux/Mac
-source venv/bin/activate
-```
-
-### 3. Abhängigkeiten installieren
-
-```bash
-pip install -r requirements.txt
-```
-
-### 4. Microsoft ODBC Driver installieren
-
-#### Windows
-1. **Microsoft ODBC Driver 18 für SQL Server** von Microsoft herunterladen
-2. Installation ausführen
-3. Überprüfen: `odbcad32.exe`
-
-#### Linux (Ubuntu/Debian)
-```bash
-curl https://packages.microsoft.com/keys/microsoft.asc | apt-key add -
-curl https://packages.microsoft.com/config/ubuntu/20.04/prod.list > /etc/apt/sources.list.d/mssql-release.list
-apt-get update
-ACCEPT_EULA=Y apt-get install -y msodbcsql18
-```
-
-#### macOS
-```bash
-brew tap microsoft/mssql-release https://github.com/Microsoft/homebrew-mssql-release
-brew update
-ACCEPT_EULA=Y brew install msodbcsql18
-```
-
----
-
-## ⚙️ Konfiguration
-
-### Umgebungsvariablen
-
-Erstellen Sie eine `.env`-Datei im Projektverzeichnis:
-
-```env
-# Datenbank-Konfiguration
-DB_SERVER=ihr_sql_server_host
-DB_NAME=ihr_datenbank_name
-DB_USER=ihr_benutzername
-DB_PASSWORD=ihr_passwort
-DB_DRIVER=ODBC Driver 18 for SQL Server
-
-# Shopify-Konfiguration
-SHOPIFY_SHOP_URL=https://ihr-shop.myshopify.com
-SHOPIFY_ACCESS_TOKEN=ihr_access_token
-SHOPIFY_API_VERSION=2024-10
-
-# Wortmann FTP-Konfiguration (Optional)
-WORTMANN_FTP_HOST=ftp.wortmann.de
-WORTMANN_FTP_PORT=21
-WORTMANN_FTP_USER=ihr_ftp_benutzername
-WORTMANN_FTP_PASSWORD=ihr_ftp_passwort
-WORTMANN_PATH_PRODUCTCATALOG=/Preisliste/productcatalog.csv
-WORTMANN_PATH_CONTENT=/Preisliste/content.csv
-WORTMANN_PATH_IMAGES_ZIP=/Produktbilder/productimages.zip
-
-# API-Konfiguration
-API_HOST=0.0.0.0
-API_PORT=8000
-DEBUG=true
-
-# Anwendungskonfiguration
-APP_NAME=Wortmann2Shopify API
-VERSION=1.0.0
-```
-
-### Shopify Access Token Einrichtung
-
-1. Gehen Sie zu Ihrem Shopify Admin Panel
-2. Navigieren Sie zu Apps → Apps und Verkaufskanäle verwalten
-3. Erstellen Sie eine neue private App oder Custom App
-4. Konfigurieren Sie erforderliche Berechtigungen:
-   - Read/Write Products
-   - Read/Write Product Images
-   - Read/Write Inventory
-5. Kopieren Sie den Access Token in Ihre `.env`-Datei
-
----
-
-## 📡 API-Dokumentation
-
-### Basis-URL
-```
-http://localhost:8000
-```
-
-### Interaktive Dokumentation
-- **Swagger UI**: `http://localhost:8000/api/v1/docs`
-- **ReDoc**: `http://localhost:8000/api/v1/redoc`
-
-### Authentifizierung
-Alle Endpunkte erfordern eine ordnungsgemäße Shopify Access Token-Konfiguration. Die API verwendet den Token aus den Umgebungsvariablen.
-
----
-
-## 📊 Datenmodelle
-
-### Produktmodelle
-
-#### ProductBase
-```python
-class ProductBase(BaseModel):
-    ProductId: str
-    Title: Optional[str] = None
-    LongDescription: Optional[str] = None
-    DescriptionShort: Optional[str] = None
-    Manufacturer: Optional[str] = None
-    Category: Optional[str] = None
-    CategoryPath: Optional[str] = None
-    Price_B2C_inclVAT: Optional[float] = None
-    Price_B2B_Regular: Optional[float] = None
-    Stock: Optional[int] = None
-    GrossWeight: Optional[float] = None
-    NetWeight: Optional[float] = None
-    Warranty: Optional[str] = None
-    Garantiegruppe: Optional[int] = None
-```
-
-#### ShopifyProduct
-```python
-class ShopifyProduct(BaseModel):
-    title: str
-    handle: str
-    body_html: str
-    vendor: Optional[str] = None
-    product_type: Optional[str] = None
-    tags: Optional[List[str]] = None
-    variants: List[ShopifyVariant]
-    options: List[ShopifyOption]
-    metafields: List[ShopifyMetafield]
-    images: Optional[List[ShopifyImage]] = None
-```
-
----
-
-## 🎯 Verwendungsbeispiele
-
-### 1. Gesundheitsprüfung
-
-```bash
-curl -X GET http://localhost:8000/api/v1/health
-```
-
-**Antwort:**
-```json
-{
-  "status": "healthy",
-  "service": "fastapi-n8n-workflow",
-  "version": "1.0.0"
-}
-```
-
-### 2. Verbindungstests
-
-```bash
-curl -X GET http://localhost:8000/api/v1/test-connections
-```
-
-**Antwort:**
-```json
-{
-  "database": "connected",
-  "shopify": "connected"
-}
-```
-
-### 3. Alle Produkte hochladen (Dry Run)
-
-```bash
-curl -X POST http://localhost:8000/api/v1/products/upload-all-products \
-  -H "Content-Type: application/json" \
-  -d '{
-    "dry_run": true,
-    "batch_size": 10,
-    "product_limit": 100
-  }'
-```
-
-### 4. Spezifische Produkte synchronisieren
-
-```bash
-curl -X POST http://localhost:8000/api/v1/products/update-products-by-ids \
-  -H "Content-Type: application/json" \
-  -d '{
-    "product_ids": ["eu1009805", "eu1009806", "eu1009807"],
-    "dry_run": false,
-    "batch_size": 3
-  }'
-```
-
-### 5. Neue Produkte erstellen
-
-```bash
-curl -X POST http://localhost:8000/api/v1/products/create-products-by-ids \
-  -H "Content-Type: application/json" \
-  -d '{
-    "product_ids": ["eu1009808", "eu1009809"],
-    "batch_size": 2
-  }'
-```
-
-### 6. Produkte löschen
-
-```bash
-curl -X POST http://localhost:8000/api/v1/products/delete-products-by-ids \
-  -H "Content-Type: application/json" \
-  -d '{
-    "product_ids": ["eu1009810", "eu1009811"],
-    "batch_size": 2
-  }'
-```
-
-### 7. Shopify-Produkte exportieren
-
-```bash
-curl -X GET http://localhost:8000/api/v1/products/export-shopify-products
-```
-
-### 8. Wortmann-Import
-
-```bash
-curl -X POST http://localhost:8000/api/v1/wortmann/wortmann-import
-```
-
----
-
-## 🐳 Docker-Bereitstellung
-
-### Docker Compose Einrichtung
-
-Die Anwendung enthält ein vollständiges Docker-Setup mit Gesundheitsprüfungen und Netzwerk.
-
-```bash
-# Alle Services bauen und starten
-docker-compose up --build
-
-# Im Hintergrund starten
-docker-compose up -d
-
-# Logs anzeigen
-docker-compose logs -f
-
-# Services stoppen
-docker-compose down
-```
-
-### Docker-Konfiguration
-
-Die `docker-compose.yml` enthält:
-- **Gesundheitsprüfungen**: Automatische Container-Gesundheitsüberwachung
-- **Netzwerk**: Isoliertes Netzwerk für Service-Kommunikation
-- **Umgebung**: Sichere Umgebungsvariablenverwaltung
-- **Neustart-Richtlinie**: Automatischer Neustart bei Fehlern
-
----
-
-## 🔧 Fehlerbehebung
-
-### Häufige Probleme
-
-#### Datenbankverbindungsfehler
-
-**Fehler**: `[Microsoft][ODBC Driver Manager] The data source name was not found`
-
-**Lösungen**:
-1. ODBC Driver-Installation überprüfen
-2. Treibername in `.env`-Datei überprüfen
-3. Verbindung mit ODBC-Test-Tool testen
-4. Sicherstellen, dass SQL Server erreichbar ist
-
-#### Shopify API-Fehler
-
-**Fehler**: `401 Unauthorized`
-
-**Lösungen**:
-1. Access Token in `.env`-Datei überprüfen
-2. App-Berechtigungen in Shopify Admin überprüfen
-3. Sicherstellen, dass Token nicht abgelaufen ist
-4. Mit Shopify API direkt testen
-
-**Fehler**: `429 Too Many Requests`
-
-**Lösungen**:
-1. Die Anwendung hat eingebautes Rate Limiting
-2. Verzögerungen zwischen Anfragen erhöhen, falls nötig
-3. Kleinere Batch-Größen verwenden
-4. Request-Queuing implementieren
-
-### Debugging-Tipps
-
-1. **Debug-Modus aktivieren**:
-   ```env
-   DEBUG=true
-   ```
-
-2. **Logs überprüfen**:
-   ```bash
-   # Docker
-   docker-compose logs -f app
-   
-   # Lokal
-   tail -f logs/app.log
-   ```
-
-3. **Einzelne Komponenten testen**:
-   ```bash
-   # Datenbankverbindung testen
-   curl -X GET http://localhost:8000/api/v1/test-connections
-   
-   # Zuerst mit Dry Run testen
-   curl -X POST http://localhost:8000/api/v1/products/upload-all-products \
-     -H "Content-Type: application/json" \
-     -d '{"dry_run": true, "batch_size": 1}'
-   ```
-
----
-
-## 👨‍💻 Entwicklung
-
-### Lokale Entwicklungseinrichtung
-
-1. **Entwicklungsabhängigkeiten installieren**:
-   ```bash
-   pip install -r requirements.txt
-   pip install pytest pytest-asyncio httpx
-   ```
-
-2. **Entwicklungsserver starten**:
-   ```bash
-   uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
-   ```
-
-3. **Tests ausführen**:
-   ```bash
-   pytest tests/
-   ```
-
-### Code-Struktur-Richtlinien
-
-- **Services**: Geschäftslogik und externe API-Interaktionen
-- **Models**: Datenvalidierung und Serialisierung
-- **Endpoints**: HTTP-Anfrage/Antwort-Behandlung
-- **Utils**: Wiederverwendbare Utility-Funktionen
-- **Core**: Anwendungskonfiguration und Datenbankverwaltung
-
----
-
-## 📈 Leistungsoptimierung
-
-### Batch-Verarbeitung
-- Angemessene Batch-Größen verwenden (10-50 Produkte pro Batch)
-- Parallele Verarbeitung für unabhängige Operationen implementieren
-- Async/await für I/O-Operationen verwenden
-
-### Datenbankoptimierung
-- Connection Pooling verwenden
-- SQL-Abfragen mit ordnungsgemäßer Indizierung optimieren
-- Abfrageergebnis-Caching implementieren, wo angemessen
-
-### API Rate Limiting
-- Shopifys Rate Limits respektieren (2 Anfragen pro Sekunde)
-- Exponentielles Backoff für Wiederholungen implementieren
-- GraphQL für Bulk-Operationen verwenden, wenn möglich
-
----
-
-## 🔒 Sicherheitsüberlegungen
-
-### API-Sicherheit
-- HTTPS in der Produktion verwenden
-- Ordnungsgemäße Authentifizierung implementieren
-- Alle Eingabedaten validieren
-- Datenbankabfragen sanitisieren
-
-### Datenschutz
-- Sensible Konfigurationsdaten verschlüsseln
-- Sichere Verbindungsstrings verwenden
-- Audit-Protokollierung implementieren
-- Regelmäßige Sicherheitsupdates
-
-### Shopify-Integration
-- Minimale erforderliche Berechtigungen verwenden
-- Access Tokens regelmäßig rotieren
-- API-Nutzung überwachen
-- Webhook-Validierung implementieren
-
----
-
-## 📞 Support
-
-### Hilfe erhalten
-
-1. **Dokumentation überprüfen**: Diese README und API-Docs durchgehen
-2. **Logs überprüfen**: Anwendungs- und Fehlerlogs untersuchen
-3. **Verbindungen testen**: Gesundheitsprüfungs-Endpunkte verwenden
-4. **Issue erstellen**: Detaillierte Fehlerberichte einreichen
-
-### Fehlerberichterstattung
-
-Bei der Berichterstattung von Problemen einschließen:
-- Anwendungsversion
-- Konfiguration (ohne sensible Daten)
-- Fehlermeldungen und Logs
-- Schritte zur Reproduktion
-- Erwartetes vs. tatsächliches Verhalten
-
----
-
-## 📄 Lizenz
-
-Dieses Projekt ist unter der MIT-Lizenz lizenziert - siehe LICENSE-Datei für Details.
