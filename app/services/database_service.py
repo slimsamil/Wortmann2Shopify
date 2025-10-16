@@ -212,6 +212,7 @@ class DatabaseService:
                 cursor = conn.cursor()
                 affected = 0
                 for r in records:
+                    cursor.execute("DELETE FROM BilderShopify WHERE filename = ?", (r.get('filename'),))
                     cursor.execute(
                         """
                         INSERT INTO BilderShopify (supplier_aid, filename, base64, IsPrimary)
