@@ -375,7 +375,7 @@ async def export_shopify_products(
 
                 accesssory_products = product.get('metafields', {}).get('verwandte_produkte', '')
                 stock_next_delivery = product.get('metafields', {}).get('StockNextDelivery', '')
-
+                warranty_group = int(product.get('metafields', {}).get('Garantiegruppe', 0))
 
                 # Images
                 image_primary = ""
@@ -410,7 +410,7 @@ async def export_shopify_products(
                     "EOL": False,
                     "Promotion": False,
                     "AccessoryProducts": accesssory_products,
-                    "Garantiegruppe": 0,
+                    "Garantiegruppe": warranty_group,
                 }
                 
                 standardized_products.append(standardized_product)

@@ -1180,6 +1180,10 @@ class ShopifyService:
                     raw_value = product_node['stock_next_delivery'].get('value')
                     metafields['StockNextDelivery'] = parse_metafield_value(raw_value)
 
+                if 'warranty_group' in product_node and product_node['warranty_group']:
+                    raw_value = product_node['warranty_group'].get('value')
+                    metafields['warranty_group'] = parse_metafield_value(raw_value)    
+
                 if 'price_b2b_regular' in product_node and product_node['price_b2b_regular']:
                     raw_value = product_node['price_b2b_regular'].get('value')
                     metafields['Price_B2B_Regular'] = parse_metafield_value(raw_value)

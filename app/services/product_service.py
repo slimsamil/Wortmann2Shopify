@@ -298,6 +298,13 @@ class ProductService:
 
         metafields.append(ShopifyMetafield(
             namespace='custom',
+            key='warranty_group',
+            value=product.get('warranty_group') or '',
+            type='number_integer'
+        ))
+
+        metafields.append(ShopifyMetafield(
+            namespace='custom',
             key='Price_B2B_Regular',
             value=str(product.get('Price_B2B_Regular')) or 0,
             type='number_decimal'
