@@ -137,7 +137,7 @@ class WortmannService:
                 'NonReturnable': to_bool_01(src.get('NonReturnable')),
                 'EOL': to_bool_01(src.get('EOL')),
                 'Promotion': to_bool_01(src.get('Promotion')),
-                'AccessoryProducts': src.get('AccessoryProducts') or '',
+                'AccessoryProducts': src.get('AccessoryProducts') or '[]',
             })
 
         category_map = {
