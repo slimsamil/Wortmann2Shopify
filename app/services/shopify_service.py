@@ -987,7 +987,7 @@ class ShopifyService:
             "  stock_next_delivery: metafield(namespace: \"custom\", key: \"StockNextDelivery\") { "
             "    __typename key value namespace "
             "  } "
-            "  warrranty_group: metafield(namespace: \"custom\", key: \"warrranty_group\") { "
+            "  warranty_group: metafield(namespace: \"custom\", key: \"warranty_group\") { "
             "    __typename key value namespace "
             "  } "
             "  price_b2b_regular: metafield(namespace: \"custom\", key: \"Price_B2B_Regular\") { "
