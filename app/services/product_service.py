@@ -299,7 +299,7 @@ class ProductService:
         metafields.append(ShopifyMetafield(
             namespace='custom',
             key='warranty_group',
-            value=product.get('warranty_group') or '',
+            value=product.get('Garantiegruppe') or '',
             type='number_integer'
         ))
 
