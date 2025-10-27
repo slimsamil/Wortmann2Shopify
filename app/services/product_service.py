@@ -317,23 +317,25 @@ class ProductService:
             type='number_decimal'
         ))
 
-        # Handle accessory products - always set the metafield to ensure it's updated
+        # Handle accessory products - only add metafield if there are actual accessories
         accessory_products = product.get('AccessoryProducts', '').strip()
 
-        # Process and prefix non-empty IDs
-        prefixed_ids = [
-            f"prod-{id.strip()}" 
-            for id in accessory_products.split('|') 
-            if id.strip()
-        ] if accessory_products else []
-
-        # Create metafield with processed accessories or empty array
-        metafields.append(ShopifyMetafield(
-            namespace='custom',
-            key='verwandte_produkte',
-            value=json.dumps(prefixed_ids),
-            type='json'
-        ))
+        if accessory_products:
+            # Process and prefix non-empty IDs
+            prefixed_ids = [
+                f"prod-{id.strip()}" 
+                for id in accessory_products.split('|') 
+                if id.strip()
+            ]
+            
+            # Only add metafield if we have valid accessory IDs
+            if prefixed_ids:
+                metafields.append(ShopifyMetafield(
+                    namespace='custom',
+                    key='verwandte_produkte',
+                    value=json.dumps(prefixed_ids),
+                    type='json'
+                ))
                         
         # Build final product structure
         shopify_product = ShopifyProduct(
