@@ -358,7 +358,7 @@ async def export_shopify_products(
                 stock = 0
                 if product.get('variants') and len(product['variants']) > 0:
                     try:
-                        stock = int(product['variants'][0].get('inventory_quantity', 0) or product.get('metafields', {}).get('Inventarbestand', 0) or 0)
+                        stock = int(product.get('metafields', {}).get('Inventarbestand', 0) or 0)
                     except (ValueError, TypeError):
                         stock = 0
 
