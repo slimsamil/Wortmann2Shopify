@@ -358,7 +358,7 @@ async def export_shopify_products(
                 stock = 0
                 if product.get('variants') and len(product['variants']) > 0:
                     try:
-                        stock = int(product['variants'][0].get('inventory_quantity', 0) or product.get('metafields', {}).get('Inventarbestand', 0) or 0)
+                        stock = int(product.get('metafields', {}).get('Inventarbestand', 0) or 0)
                     except (ValueError, TypeError):
                         stock = 0
 
@@ -375,7 +375,7 @@ async def export_shopify_products(
 
                 accesssory_products = product.get('metafields', {}).get('verwandte_produkte', '')
                 stock_next_delivery = product.get('metafields', {}).get('StockNextDelivery', '')
-
+                warranty_group = product.get('metafields', {}).get('warranty_group', 0)
 
                 # Images
                 image_primary = ""
@@ -410,7 +410,7 @@ async def export_shopify_products(
                     "EOL": False,
                     "Promotion": False,
                     "AccessoryProducts": accesssory_products,
-                    "Garantiegruppe": 0,
+                    "Garantiegruppe": warranty_group,
                 }
                 
                 standardized_products.append(standardized_product)

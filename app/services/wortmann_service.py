@@ -105,16 +105,6 @@ class WortmannService:
             # Return in DD.MM.YYYY format
             return f"{day}.{month}.{year}"
 
-        # Category to warranty group mapping    
-        category_map = {
-                    'mobile': 1,
-                    'pad': 2,
-                    'pc': 3,
-                    'all-in-one': 4,
-                    'lcd': 5,
-                    'server': 6,
-                    'nas': 7,
-                }
 
         normalized: List[Dict[str, Any]] = []
         for src in items:
@@ -123,7 +113,6 @@ class WortmannService:
             if not title:
                 continue
                 
-            category_key = (src.get('Category') or '').lower()
 
             normalized.append({
                 'ProductId': (src.get('ProductId') or '').strip(),
@@ -148,10 +137,23 @@ class WortmannService:
                 'NonReturnable': to_bool_01(src.get('NonReturnable')),
                 'EOL': to_bool_01(src.get('EOL')),
                 'Promotion': to_bool_01(src.get('Promotion')),
-                'AccessoryProducts': src.get('AccessoryProducts') or '',
-                'Garantiegruppe': category_map.get(category_key, 0),
+                'AccessoryProducts': src.get('AccessoryProducts'),
             })
-            
+
+        category_map = {
+            'mobile': 1,
+            'pad': 2,
+            'pc': 3,
+            'all-in-one': 4,
+            'lcd': 5,
+            'server': 6,
+            'nas': 7,
+        }
+
+        for n in normalized:
+            key = (n.get('Category') or '').lower()
+            n['Garantiegruppe'] = category_map.get(key, 0)
+        
         return normalized
 
     def _extract_images_from_zip(self, zip_bytes: bytes) -> Dict[str, bytes]:

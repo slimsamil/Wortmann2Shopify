@@ -298,6 +298,13 @@ class ProductService:
 
         metafields.append(ShopifyMetafield(
             namespace='custom',
+            key='warranty_group',
+            value=str(product.get('Garantiegruppe')),
+            type='number_integer'
+        ))
+
+        metafields.append(ShopifyMetafield(
+            namespace='custom',
             key='Price_B2B_Regular',
             value=str(product.get('Price_B2B_Regular')) or 0,
             type='number_decimal'
@@ -310,27 +317,25 @@ class ProductService:
             type='number_decimal'
         ))
 
-        if product.get('AccessoryProducts'):
-            accessory_products = product.get('AccessoryProducts')
-            split = accessory_products.split('|')
-            prefixed_ids = []
+        # Handle accessory products - only add metafield if there are actual accessories
+        accessory_products = product.get('AccessoryProducts', '').strip()
 
-            for id in split:
-                prefixed_ids.append(f"prod-{id}")
-            json_accessory_products = json.dumps(prefixed_ids)
-            metafields.append(ShopifyMetafield(
-                            namespace='custom',
-                            key='verwandte_produkte',
-                            value=json_accessory_products,
-                            type='json'
-                        ))
-        else:
-            metafields.append(ShopifyMetafield(
-                            namespace='custom',
-                            key='verwandte_produkte',
-                            value='',
-                            type='json'
-                        ))
+        if accessory_products:
+            # Process and prefix non-empty IDs
+            prefixed_ids = [
+                f"prod-{id.strip()}" 
+                for id in accessory_products.split('|') 
+                if id.strip()
+            ]
+            
+            # Only add metafield if we have valid accessory IDs
+            if prefixed_ids:
+                metafields.append(ShopifyMetafield(
+                    namespace='custom',
+                    key='verwandte_produkte',
+                    value=json.dumps(prefixed_ids),
+                    type='json'
+                ))
                         
         # Build final product structure
         shopify_product = ShopifyProduct(
