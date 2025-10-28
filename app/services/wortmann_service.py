@@ -168,6 +168,69 @@ class WortmannService:
                     continue
         return out
 
+    def _enrich_rental_products(self, products: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        Enrich rental products (C12/C24/C36) with data from their main products.
+        This happens before database insertion for better performance.
+        """
+        try:
+            # Create lookup maps for main products
+            main_products_by_id = {}
+            rental_products = []
+            
+            # First pass: separate main products and rental products
+            for product in products:
+                product_id = product.get('ProductId', '')
+                if product_id.endswith('C12') or product_id.endswith('C24') or product_id.endswith('C36'):
+                    rental_products.append(product)
+                else:
+                    main_products_by_id[product_id] = product
+            
+            logger.info(f"Found {len(main_products_by_id)} main products and {len(rental_products)} rental products")
+            
+            # Second pass: enrich rental products with main product data
+            enriched_products = []
+            enriched_count = 0
+            main_products_count = 0
+            
+            for product in products:
+                product_id = product.get('ProductId', '')
+                
+                # Check if this is a rental product that needs enrichment
+                if (product_id.endswith('C12') or product_id.endswith('C24') or product_id.endswith('C36')):
+                    main_product_id = product_id[:-3]
+                    main_product = main_products_by_id.get(main_product_id)
+                    
+                    if main_product:
+                        # Create enriched copy of the rental product
+                        enriched_product = product.copy()
+                        enriched_product['LongDescription'] = main_product.get('LongDescription', '')
+                        enriched_product['ImagePrimary'] = main_product.get('ImagePrimary', '')
+                        enriched_product['ImageAdditional'] = main_product.get('ImageAdditional', '')
+                        enriched_product['AccessoryProducts'] = main_product.get('AccessoryProducts', '')
+                        enriched_product['_enriched'] = True
+                        
+                        enriched_products.append(enriched_product)
+                        enriched_count += 1
+                        
+                        logger.info(f"Enriched rental product {product_id} with data from main product {main_product_id}")
+                    else:
+                        # Keep original if no main product found
+                        enriched_products.append(product)
+                        logger.warning(f"Main product {main_product_id} not found for rental product {product_id}")
+                else:
+                    # Keep main products as-is
+                    enriched_products.append(product)
+                    main_products_count += 1
+            
+            logger.info(f"Enriched {enriched_count} rental products and kept {main_products_count} main products during FTP processing")
+            logger.info(f"Total products to be inserted: {len(enriched_products)} (input: {len(products)})")
+            return enriched_products
+            
+        except Exception as e:
+            logger.error(f"Error enriching rental products: {str(e)}")
+            raise
+
     def _expand_image_rows(self, products: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         rows: List[Dict[str, Any]] = []
         for p in products:
@@ -200,12 +263,15 @@ class WortmannService:
         combined = self._combine_product_content(products_filtered, content_rows)
         normalized = self._normalize_products(combined)
 
-        # Upsert products
-        upserted = self.db.upsert_wortmann_products(normalized)
+        # Enrich rental products with main product data before database insertion
+        enriched_products = self._enrich_rental_products(normalized)
+        
+        # Upsert products (now with enriched rental products)
+        upserted = self.db.upsert_wortmann_products(enriched_products)
 
         # Prepare images
         zip_map = self._extract_images_from_zip(images_zip)
-        image_rows = self._expand_image_rows(normalized)
+        image_rows = self._expand_image_rows(enriched_products)
         to_insert: List[Dict[str, Any]] = []
         for row in image_rows:
             data = zip_map.get(row['filename'])
@@ -223,7 +289,7 @@ class WortmannService:
         return {
             'products_upserted': upserted,
             'images_inserted': inserted_images,
-            'products_processed': len(normalized),
+            'products_processed': len(enriched_products),
             'images_candidates': len(image_rows),
         }
 

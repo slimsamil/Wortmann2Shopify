@@ -31,3 +31,4 @@ async def wortmann_import(
     except Exception as e:
         logger.error(f"Wortmann import failed: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Wortmann import failed: {str(e)}")
+

@@ -10,14 +10,14 @@ class DatabaseService:
         self.db_manager = db_manager
     
     def fetch_products(self, limit: int = None) -> List[Dict[str, Any]]:
-        """Fetch products from WortmannProdukte table"""
+        """Fetch products from WortmannProdukte_backup table"""
         try:
             with self.db_manager.get_connection() as conn:
                 cursor = conn.cursor()
                 if limit is not None:
-                    cursor.execute(f"SELECT TOP({limit}) * FROM WortmannProdukte")
+                    cursor.execute(f"SELECT TOP({limit}) * FROM WortmannProdukte_backup")
                 else:
-                    cursor.execute("SELECT * FROM WortmannProdukte")
+                    cursor.execute("SELECT * FROM WortmannProdukte_backup")
                 
                 columns = [column[0] for column in cursor.description]
                 products = []
@@ -36,7 +36,7 @@ class DatabaseService:
     
     
     def fetch_products_by_ids(self, product_ids: List[str]) -> List[Dict[str, Any]]:
-        """Fetch multiple products by ProductId list in a single query"""
+        """Fetch multiple products by ProductId list in a single query from WortmannProdukte_backup"""
         if not product_ids:
             return []
         
@@ -46,7 +46,7 @@ class DatabaseService:
                 
                 # Create placeholders for IN clause
                 placeholders = ','.join(['?' for _ in product_ids])
-                query = f"SELECT * FROM WortmannProdukte WHERE ProductId IN ({placeholders})"
+                query = f"SELECT * FROM WortmannProdukte_backup WHERE ProductId IN ({placeholders})"
                 
                 cursor.execute(query, product_ids)
                 
@@ -163,19 +163,21 @@ class DatabaseService:
     
 
     def upsert_wortmann_products(self, products: List[Dict[str, Any]]) -> int:
-        """Upsert Wortmann product rows into WortmannProdukte table."""
+        """Upsert Wortmann product rows into WortmannProdukte_backup table."""
         if not products:
             return 0
         try:
             with self.db_manager.get_connection() as conn:
                 cursor = conn.cursor()
                 affected = 0
+                
+                # Insert/Update all products (rental products should already be enriched)
                 for p in products:
                     # Delete existing row for ProductId to avoid duplicates
-                    cursor.execute("DELETE FROM WortmannProdukte WHERE ProductId = ?", (p.get('ProductId'),))
+                    cursor.execute("DELETE FROM WortmannProdukte_backup WHERE ProductId = ?", (p.get('ProductId'),))
                     cursor.execute(
                         """
-                        INSERT INTO WortmannProdukte (
+                        INSERT INTO WortmannProdukte_backup (
                             ProductId, Title, DescriptionShort, LongDescription,
                             Manufacturer, Category, CategoryPath, Warranty,
                             Price_B2B_Regular, Price_B2B_Discounted, Price_B2C_inclVAT,
@@ -195,6 +197,7 @@ class DatabaseService:
                         )
                     )
                     affected += 1
+                
                 conn.commit()
                 logger.info(f"Upserted {affected} Wortmann products")
                 return affected
@@ -230,10 +233,4 @@ class DatabaseService:
             logger.error(f"Error inserting image records: {str(e)}")
             raise
     
-    
-    def test_connection(self) -> bool:
-        """Test database connection"""
-        return self.db_manager.test_connection()
-
-
 database_service = DatabaseService()
