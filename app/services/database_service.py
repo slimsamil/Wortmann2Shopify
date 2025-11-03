@@ -183,8 +183,9 @@ class DatabaseService:
                             Price_B2B_Regular, Price_B2B_Discounted, Price_B2C_inclVAT,
                             Currency, VATRate, Stock, StockNextDelivery,
                             ImagePrimary, ImageAdditional, GrossWeight, NetWeight,
-                            NonReturnable, EOL, Promotion, Garantiegruppe, AccessoryProducts
-                        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                            NonReturnable, EOL, Promotion, Garantiegruppe, AccessoryProducts,
+                            Bildschirmdiagonale, Prozessor, GPU, RAM, Speicher, Prozessorfamilie
+                        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                         """,
                         (
                             p.get('ProductId'), p.get('Title'), p.get('DescriptionShort'), p.get('LongDescription'),
@@ -193,7 +194,8 @@ class DatabaseService:
                             p.get('Currency'), p.get('VATRate'), p.get('Stock'), p.get('StockNextDelivery'),
                             p.get('ImagePrimary'), p.get('ImageAdditional'), p.get('GrossWeight'), p.get('NetWeight'),
                             1 if p.get('NonReturnable') else 0, 1 if p.get('EOL') else 0, 1 if p.get('Promotion') else 0,
-                            p.get('Garantiegruppe'), p.get('AccessoryProducts')
+                            p.get('Garantiegruppe'), p.get('AccessoryProducts'), p.get('Bildschirmdiagonale'), p.get('Prozessor'),
+                            p.get('GPU'), p.get('RAM'), p.get('Speicher'), p.get('Prozessorfamilie')
                         )
                     )
                     affected += 1
