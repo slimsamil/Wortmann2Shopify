@@ -336,6 +336,24 @@ class ProductService:
                     value=json.dumps(prefixed_ids),
                     type='json'
                 ))
+
+        # New filter metafields from parsed LongDescription (varchar in DB, single_line_text)
+        # Use empty string when value is missing
+        new_filters = {
+            'Bildschirmdiagonale': product.get('Bildschirmdiagonale') or '',
+            'Prozessor': product.get('Prozessor') or '',
+            'GPU': product.get('GPU') or '',
+            'RAM': product.get('RAM') or '',
+            'Speicher': product.get('Speicher') or '',
+            'Prozessorfamilie': product.get('Prozessorfamilie') or '',
+        }
+        for key, val in new_filters.items():
+            metafields.append(ShopifyMetafield(
+                namespace='custom',
+                key=key,
+                value=str(val),
+                type='single_line_text_field'
+            ))
                         
         # Build final product structure
         shopify_product = ShopifyProduct(

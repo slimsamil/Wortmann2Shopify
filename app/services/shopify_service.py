@@ -6,8 +6,20 @@ from app.core.config import settings
 from app.models.shopify import ShopifyProductWrapper
 from app.utils.helpers import gid_to_numeric_id, parse_metafield_value
 import logging
+from pydantic import BaseModel
  
 logger = logging.getLogger(__name__)
+ 
+ 
+def ensure_serializable(obj: Any) -> Any:
+    """Recursively convert Pydantic models to JSON-serializable dicts."""
+    if isinstance(obj, BaseModel):
+        return obj.model_dump(mode='json')
+    if isinstance(obj, list):
+        return [ensure_serializable(v) for v in obj]
+    if isinstance(obj, dict):
+        return {k: ensure_serializable(v) for k, v in obj.items()}
+    return obj
  
  
 class ShopifyService:
@@ -834,8 +846,8 @@ class ShopifyService:
                 continue
             db_by_handle[f"prod-{pid}"] = p
 
-        # Fetch shopify products (handles and ids)
-        all_shopify = await self.fetch_all_products()
+        # Fetch shopify products with full fields via Bulk so metafields are available
+        all_shopify = await self.fetch_all_products_bulk_full()
         shopify_by_handle: Dict[str, Dict[str, Any]] = {}
         for sp in all_shopify:
             h = sp.get('handle')
@@ -920,6 +932,30 @@ class ShopifyService:
                     images_out.append(src)
             images_out.sort()
             norm["images"] = images_out
+
+            # Normalize selected metafields (custom namespace, single_line_text_field) for comparison
+            desired_keys = {
+                'Bildschirmdiagonale', 'Prozessor', 'GPU', 'RAM', 'Speicher', 'Prozessorfamilie'
+            }
+            custom_mf: Dict[str, Any] = {}
+            # product may hold metafields as list (expected payload) or dict (mapped from Shopify)
+            mfs = product.get("metafields")
+            if isinstance(mfs, list):
+                for mf in mfs:
+                    try:
+                        if (mf.get('namespace') == 'custom' and mf.get('key') in desired_keys):
+                            custom_mf[mf.get('key')] = mf.get('value')
+                    except Exception:
+                        continue
+            elif isinstance(mfs, dict):
+                for k in desired_keys:
+                    if k in mfs:
+                        custom_mf[k] = mfs.get(k)
+            # Ensure all keys exist for stable comparison
+            for k in list(desired_keys):
+                if k not in custom_mf:
+                    custom_mf[k] = ''
+            norm["custom_metafields"] = custom_mf
             return norm
 
         # Compute actual updates count using precomputed expected payloads
@@ -967,32 +1003,37 @@ class ShopifyService:
         return results
    
    
-    async def send_products_batch(self, products: List[ShopifyProductWrapper], batch_size: int = 2) -> List[Dict[str, Any]]:
-        """Send products to Shopify in batches"""
+    async def send_products_batch(self, products: List[ShopifyProductWrapper], batch_size: int = 10) -> List[Dict[str, Any]]:
+        """Send products to Shopify in robustly limited batches for large sets."""
+        import asyncio
         results = []
-        # Ensure batch_size is a valid positive integer
+        # Sicherstellen, dass die batch_size sauber gesetzt ist
         try:
             batch_size = int(batch_size)
         except (TypeError, ValueError):
-            batch_size = None
+            batch_size = 10
         if not batch_size or batch_size <= 0:
-            batch_size = len(products) if len(products) > 0 else 1
-        async with httpx.AsyncClient() as client:
+            batch_size = 10
+        
+        httpx_limits = httpx.Limits(max_connections=10)
+        semaphore = asyncio.Semaphore(5)  # max 5 gleichzeitig!
+
+        async def wrapped_task(client, product):
+            async with semaphore:
+                res = await self._send_single_product(client, product)
+                await asyncio.sleep(0.1)  # kleine Pause zwischen Tasks
+                return res
+
+        async with httpx.AsyncClient(limits=httpx_limits) as client:
             for i in range(0, len(products), batch_size):
                 batch = products[i:i + batch_size]
-               
-                tasks = []
-                for product in batch:
-                    task = self._send_single_product(client, product)
-                    tasks.append(task)
-               
+                tasks = [wrapped_task(client, product) for product in batch]
                 batch_results = await asyncio.gather(*tasks, return_exceptions=True)
                 results.extend(batch_results)
-               
-                # Rate limiting - wait 1 second between batches
+
+                # Nach JEDEM Batch eine kurze Pause!
                 if i + batch_size < len(products):
                     await asyncio.sleep(1)
-       
         return results
 
 
@@ -1312,15 +1353,15 @@ class ShopifyService:
 
    
     async def _send_single_product(self, client: httpx.AsyncClient, product: ShopifyProductWrapper ) -> Dict[str, Any]:
-        """Send a single product to Shopify"""
         try:
+            payload = ensure_serializable(product.product)
             response = await client.post(
                 f"{self.shop_url}/admin/api/{self.api_version}/products.json",
                 headers=self.headers,
-                json={"product": product.product.model_dump()},
+                json={"product": payload},
                 timeout=30.0
             )
-           
+
             if response.status_code == 201:
                 response_data = response.json()
                 return {
@@ -1330,13 +1371,18 @@ class ShopifyService:
                     'title': product.product.title
                 }
             else:
+                logger.error(
+                    f"Shopify upload failed ({response.status_code}) for {product.product.handle}: {response.text}\nPayload: {payload}"
+                )
                 return {
                     'status': 'error',
                     'product_id': product.product.handle,
                     'error': response.text,
-                    'status_code': response.status_code
+                    'status_code': response.status_code,
+                    'payload': payload
                 }
         except Exception as e:
+            logger.exception(f"Exception in Shopify Upload for {product.product.handle}: {str(e)}")
             return {
                 'status': 'error',
                 'product_id': product.product.handle,

@@ -10,14 +10,14 @@ class DatabaseService:
         self.db_manager = db_manager
     
     def fetch_products(self, limit: int = None) -> List[Dict[str, Any]]:
-        """Fetch products from WortmannProdukte_backup table"""
+        """Fetch products from WortmannProdukte table, excluding EOL products"""
         try:
             with self.db_manager.get_connection() as conn:
                 cursor = conn.cursor()
                 if limit is not None:
-                    cursor.execute(f"SELECT TOP({limit}) * FROM WortmannProdukte_backup")
+                    cursor.execute(f"SELECT TOP({limit}) * FROM WortmannProdukte WHERE EOL = 0")
                 else:
-                    cursor.execute("SELECT * FROM WortmannProdukte_backup")
+                    cursor.execute("SELECT * FROM WortmannProdukte WHERE EOL = 0")
                 
                 columns = [column[0] for column in cursor.description]
                 products = []
@@ -28,7 +28,7 @@ class DatabaseService:
                         product_dict[columns[i]] = value
                     products.append(product_dict)
                 
-                logger.info(f"Fetched {len(products)} products from database")
+                logger.info(f"Fetched {len(products)} products from database (excluding EOL)")
                 return products
         except Exception as e:
             logger.error(f"Error fetching products: {str(e)}")
@@ -36,7 +36,7 @@ class DatabaseService:
     
     
     def fetch_products_by_ids(self, product_ids: List[str]) -> List[Dict[str, Any]]:
-        """Fetch multiple products by ProductId list in a single query from WortmannProdukte_backup"""
+        """Fetch multiple products by ProductId list in a single query from WortmannProdukte"""
         if not product_ids:
             return []
         
@@ -46,7 +46,7 @@ class DatabaseService:
                 
                 # Create placeholders for IN clause
                 placeholders = ','.join(['?' for _ in product_ids])
-                query = f"SELECT * FROM WortmannProdukte_backup WHERE ProductId IN ({placeholders})"
+                query = f"SELECT * FROM WortmannProdukte WHERE ProductId IN ({placeholders})"
                 
                 cursor.execute(query, product_ids)
                 
@@ -163,7 +163,7 @@ class DatabaseService:
     
 
     def upsert_wortmann_products(self, products: List[Dict[str, Any]]) -> int:
-        """Upsert Wortmann product rows into WortmannProdukte_backup table."""
+        """Upsert Wortmann product rows into WortmannProdukte table."""
         if not products:
             return 0
         try:
@@ -174,17 +174,18 @@ class DatabaseService:
                 # Insert/Update all products (rental products should already be enriched)
                 for p in products:
                     # Delete existing row for ProductId to avoid duplicates
-                    cursor.execute("DELETE FROM WortmannProdukte_backup WHERE ProductId = ?", (p.get('ProductId'),))
+                    cursor.execute("DELETE FROM WortmannProdukte WHERE ProductId = ?", (p.get('ProductId'),))
                     cursor.execute(
                         """
-                        INSERT INTO WortmannProdukte_backup (
+                        INSERT INTO WortmannProdukte (
                             ProductId, Title, DescriptionShort, LongDescription,
                             Manufacturer, Category, CategoryPath, Warranty,
                             Price_B2B_Regular, Price_B2B_Discounted, Price_B2C_inclVAT,
                             Currency, VATRate, Stock, StockNextDelivery,
                             ImagePrimary, ImageAdditional, GrossWeight, NetWeight,
-                            NonReturnable, EOL, Promotion, Garantiegruppe, AccessoryProducts
-                        ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                                NonReturnable, EOL, Promotion, Garantiegruppe, AccessoryProducts,
+                                Bildschirmdiagonale, Prozessor, GPU, RAM, Speicher, Prozessorfamilie
+                            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                         """,
                         (
                             p.get('ProductId'), p.get('Title'), p.get('DescriptionShort'), p.get('LongDescription'),
@@ -192,8 +193,9 @@ class DatabaseService:
                             p.get('Price_B2B_Regular'), p.get('Price_B2B_Discounted'), p.get('Price_B2C_inclVAT'),
                             p.get('Currency'), p.get('VATRate'), p.get('Stock'), p.get('StockNextDelivery'),
                             p.get('ImagePrimary'), p.get('ImageAdditional'), p.get('GrossWeight'), p.get('NetWeight'),
-                            1 if p.get('NonReturnable') else 0, 1 if p.get('EOL') else 0, 1 if p.get('Promotion') else 0,
-                            p.get('Garantiegruppe'), p.get('AccessoryProducts')
+                                1 if p.get('NonReturnable') else 0, 1 if p.get('EOL') else 0, 1 if p.get('Promotion') else 0,
+                                p.get('Garantiegruppe'), p.get('AccessoryProducts'),
+                                p.get('Bildschirmdiagonale'), p.get('Prozessor'), p.get('GPU'), p.get('RAM'), p.get('Speicher'), p.get('Prozessorfamilie')
                         )
                     )
                     affected += 1
