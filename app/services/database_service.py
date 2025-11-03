@@ -170,11 +170,11 @@ class DatabaseService:
             with self.db_manager.get_connection() as conn:
                 cursor = conn.cursor()
                 affected = 0
-                
+                cursor.execute("DELETE FROM WortmannProdukte")
                 # Insert/Update all products (rental products should already be enriched)
                 for p in products:
-                    # Delete existing row for ProductId to avoid duplicates
-                    cursor.execute("DELETE FROM WortmannProdukte")
+                    
+                    
                     cursor.execute(
                         """
                         INSERT INTO WortmannProdukte (
@@ -216,8 +216,9 @@ class DatabaseService:
             with self.db_manager.get_connection() as conn:
                 cursor = conn.cursor()
                 affected = 0
+                cursor.execute("DELETE FROM BilderShopify")
                 for r in records:
-                    cursor.execute("DELETE FROM BilderShopify")
+                    
                     cursor.execute(
                         """
                         INSERT INTO BilderShopify (supplier_aid, filename, base64, IsPrimary)
