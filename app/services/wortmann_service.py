@@ -168,7 +168,7 @@ class WortmannService:
             no_tags = _html.unescape(no_tags)
             return _clean_text(no_tags)
 
-        def _normalize_diagonal(text: str) -> str:
+        """ def _normalize_diagonal(text: str) -> str:
             if not text:
                 return ''
             s = _strip_html(text)
@@ -217,7 +217,7 @@ class WortmannService:
                     return f"{val_in}\""
                 except Exception:
                     return ''
-            return ''
+            return '' """
 
         def _extract_specs_from_html(html: str) -> Dict[str, Any]:
             if not html:
