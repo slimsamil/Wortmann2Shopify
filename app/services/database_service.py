@@ -174,7 +174,7 @@ class DatabaseService:
                 # Insert/Update all products (rental products should already be enriched)
                 for p in products:
                     # Delete existing row for ProductId to avoid duplicates
-                    cursor.execute("DELETE FROM WortmannProdukte WHERE ProductId = ?", (p.get('ProductId'),))
+                    cursor.execute("DELETE FROM WortmannProdukte")
                     cursor.execute(
                         """
                         INSERT INTO WortmannProdukte (
@@ -217,7 +217,7 @@ class DatabaseService:
                 cursor = conn.cursor()
                 affected = 0
                 for r in records:
-                    cursor.execute("DELETE FROM BilderShopify WHERE filename = ?", (r.get('filename'),))
+                    cursor.execute("DELETE FROM BilderShopify")
                     cursor.execute(
                         """
                         INSERT INTO BilderShopify (supplier_aid, filename, base64, IsPrimary)
