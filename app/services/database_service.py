@@ -10,14 +10,14 @@ class DatabaseService:
         self.db_manager = db_manager
     
     def fetch_products(self, limit: int = None) -> List[Dict[str, Any]]:
-        """Fetch products from WortmannProdukte table, excluding EOL products"""
+        """Fetch products from WortmannProdukte table"""
         try:
             with self.db_manager.get_connection() as conn:
                 cursor = conn.cursor()
                 if limit is not None:
-                    cursor.execute(f"SELECT TOP({limit}) * FROM WortmannProdukte WHERE EOL = 0")
+                    cursor.execute(f"SELECT TOP({limit}) * FROM WortmannProdukte")
                 else:
-                    cursor.execute("SELECT * FROM WortmannProdukte WHERE EOL = 0")
+                    cursor.execute("SELECT * FROM WortmannProdukte")
                 
                 columns = [column[0] for column in cursor.description]
                 products = []
@@ -28,7 +28,7 @@ class DatabaseService:
                         product_dict[columns[i]] = value
                     products.append(product_dict)
                 
-                logger.info(f"Fetched {len(products)} products from database (excluding EOL)")
+                logger.info(f"Fetched {len(products)} products from database")
                 return products
         except Exception as e:
             logger.error(f"Error fetching products: {str(e)}")
@@ -183,8 +183,8 @@ class DatabaseService:
                             Price_B2B_Regular, Price_B2B_Discounted, Price_B2C_inclVAT,
                             Currency, VATRate, Stock, StockNextDelivery,
                             ImagePrimary, ImageAdditional, GrossWeight, NetWeight,
-                                NonReturnable, EOL, Promotion, Garantiegruppe, AccessoryProducts,
-                                Bildschirmdiagonale, Prozessor, GPU, RAM, Speicher, Prozessorfamilie
+                            NonReturnable, EOL, Promotion, Garantiegruppe, AccessoryProducts,
+                            Bildschirmdiagonale, Prozessor, GPU, RAM, Speicher, Prozessorfamilie
                             ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
                         """,
                         (
@@ -193,9 +193,9 @@ class DatabaseService:
                             p.get('Price_B2B_Regular'), p.get('Price_B2B_Discounted'), p.get('Price_B2C_inclVAT'),
                             p.get('Currency'), p.get('VATRate'), p.get('Stock'), p.get('StockNextDelivery'),
                             p.get('ImagePrimary'), p.get('ImageAdditional'), p.get('GrossWeight'), p.get('NetWeight'),
-                                1 if p.get('NonReturnable') else 0, 1 if p.get('EOL') else 0, 1 if p.get('Promotion') else 0,
-                                p.get('Garantiegruppe'), p.get('AccessoryProducts'),
-                                p.get('Bildschirmdiagonale'), p.get('Prozessor'), p.get('GPU'), p.get('RAM'), p.get('Speicher'), p.get('Prozessorfamilie')
+                            1 if p.get('NonReturnable') else 0, 1 if p.get('EOL') else 0, 1 if p.get('Promotion') else 0,
+                            p.get('Garantiegruppe'), p.get('AccessoryProducts'), p.get('Bildschirmdiagonale'),
+                            p.get('Prozessor'), p.get('GPU'), p.get('RAM'), p.get('Speicher'), p.get('Prozessorfamilie')
                         )
                     )
                     affected += 1
