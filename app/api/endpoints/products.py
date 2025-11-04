@@ -376,6 +376,12 @@ async def export_shopify_products(
                 accesssory_products = product.get('metafields', {}).get('verwandte_produkte', '')
                 stock_next_delivery = product.get('metafields', {}).get('StockNextDelivery', '')
                 warranty_group = product.get('metafields', {}).get('warranty_group', 0)
+                ram = product.get('metafields', {}).get('RAM', '')
+                gpu = product.get('metafields', {}).get('GPU', '')
+                prozessor = product.get('metafields', {}).get('Prozessor', '')
+                prozessorfamilie = product.get('metafields', {}).get('Prozessorfamilie', '')
+                bildschirmdiagonale = product.get('metafields', {}).get('Bildschirmdiagonale', '')
+                speicher = product.get('metafields', {}).get('Speicher', '')
 
                 # Images
                 image_primary = ""
@@ -411,6 +417,12 @@ async def export_shopify_products(
                     "Promotion": False,
                     "AccessoryProducts": accesssory_products,
                     "Garantiegruppe": warranty_group,
+                    "RAM": ram,
+                    "GPU": gpu,
+                    "Prozessor": prozessor,
+                    "Prozessorfamilie": prozessorfamilie,
+                    "Bildschirmdiagonale": bildschirmdiagonale,
+                    "Speicher": speicher,
                 }
                 
                 standardized_products.append(standardized_product)
