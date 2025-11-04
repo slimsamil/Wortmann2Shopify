@@ -6,6 +6,7 @@ from app.core.config import settings
 from app.models.shopify import ShopifyProductWrapper
 from app.utils.helpers import gid_to_numeric_id, parse_metafield_value
 import logging
+from pydantic import BaseModel
  
 logger = logging.getLogger(__name__)
  
@@ -381,7 +382,6 @@ class ShopifyService:
                 )
                
                 if response.status_code == 200:
-                    response_data = response.json()
                     return {
                         'status': 'success',
                         'product_id': product_data.get('handle'),
@@ -821,154 +821,9 @@ class ShopifyService:
         except Exception as e:
             logger.error(f"Error deleting Shopify product {product_id}: {str(e)}")
             return {"status": "error", "shopify_id": product_id, "error": str(e)}
-
-    async def sync_with_database(self, db_products: List[Dict]) -> Dict[str, Any]:
-        """Ensure Shopify matches database: create missing, update changed, delete extraneous.
-        Efficiently compares ID sets and performs minimal operations.
-        """
-        # Build DB id -> product map
-        db_by_handle: Dict[str, Dict] = {}
-        for p in db_products:
-            pid = p.get('ProductId')
-            if not pid:
-                continue
-            db_by_handle[f"prod-{pid}"] = p
-
-        # Fetch shopify products (handles and ids)
-        all_shopify = await self.fetch_all_products()
-        shopify_by_handle: Dict[str, Dict[str, Any]] = {}
-        for sp in all_shopify:
-            h = sp.get('handle')
-            if h:
-                shopify_by_handle[h] = sp
-
-        db_handles = set(db_by_handle.keys())
-        sh_handles = set(shopify_by_handle.keys())
-
-        to_create = db_handles - sh_handles
-        to_delete = sh_handles - db_handles
-        to_consider_update = db_handles & sh_handles
-
-        from app.services.product_service import ProductService
-        from app.services.database_service import DatabaseService
-        
-        product_service = ProductService()
-        db_service = DatabaseService()
-        
-        # Fetch images and warranties once for all transforms
-        try:
-            images = db_service.fetch_images()
-        except Exception:
-            images = []
-        try:
-            warranties = db_service.fetch_warranties()
-        except Exception:
-            warranties = []
-
-        # Precompute expected Shopify payloads and wrappers for all DB handles
-        expected_by_handle: Dict[str, Dict[str, Any]] = {}
-        wrapper_by_handle: Dict[str, ShopifyProductWrapper] = {}
-        for handle in db_handles:
-            try:
-                merged_items = product_service.merge_data([db_by_handle[handle]], images, warranties)
-                wrappers = product_service.process_products(merged_items)
-                if wrappers:
-                    wrapper_by_handle[handle] = wrappers[0]
-                    expected_by_handle[handle] = wrappers[0].product.model_dump()
-            except Exception:
-                continue
-
-        # Lightweight normalizer to compare payloads order-insensitively
-        def _normalize_rest_like(product: Dict[str, Any]) -> Dict[str, Any]:
-            norm: Dict[str, Any] = {}
-            norm["title"] = product.get("title")
-            norm["body_html"] = product.get("body_html")
-            norm["vendor"] = product.get("vendor")
-            norm["product_type"] = product.get("product_type")
-            tags = product.get("tags") or []
-            if isinstance(tags, str):
-                tags = [t.strip() for t in tags.split(",") if t.strip()]
-            norm["tags"] = sorted(tags)
-            options_out = []
-            for o in product.get("options", []) or []:
-                options_out.append({
-                    "name": o.get("name"),
-                    "values": sorted((o.get("values") or []))
-                })
-            options_out.sort(key=lambda x: (x.get("name") or ""))
-            norm["options"] = options_out
-            variants_out = []
-            for v in product.get("variants", []) or []:
-                variants_out.append({
-                    "price": float(v.get("price", 0) or 0),
-                    "sku": v.get("sku"),
-                    "inventory_quantity": int(v.get("inventory_quantity", 0) or 0),
-                    "inventory_management": v.get("inventory_management"),
-                    "inventory_policy": v.get("inventory_policy"),
-                    "weight": float(v.get("weight", 0) or 0),
-                    "weight_unit": v.get("weight_unit"),
-                    "option1": v.get("option1"),
-                    "option2": v.get("option2"),
-                    "option3": v.get("option3"),
-                })
-            variants_out.sort(key=lambda x: (x.get("sku") or "", x.get("option1") or ""))
-            norm["variants"] = variants_out
-            images_out = []
-            for img in product.get("images", []) or []:
-                src = img.get("src")
-                if src:
-                    images_out.append(src)
-            images_out.sort()
-            norm["images"] = images_out
-            return norm
-
-        # Compute actual updates count using precomputed expected payloads
-        updates_count = 0
-        for handle in to_consider_update:
-            expected = expected_by_handle.get(handle)
-            actual = shopify_by_handle.get(handle)
-            if expected and actual:
-                if _normalize_rest_like(expected) != _normalize_rest_like(actual):
-                    updates_count += 1
-        logger.info(f"Sync changes: create={len(to_create)}, update={updates_count}, delete={len(to_delete)}")
-
-        results: Dict[str, Any] = {"created": [], "updated": [], "deleted": [], "skipped": []}
-
-        # 1) Create (reuse precomputed wrappers)
-        create_wrappers: List[ShopifyProductWrapper] = []  # type: ignore[name-defined]
-        for handle in to_create:
-            w = wrapper_by_handle.get(handle)
-            if w:
-                create_wrappers.append(w)
-        if create_wrappers:
-            batch_results = await self.send_products_batch(create_wrappers, batch_size=3)
-            results["created"].extend(batch_results)
-
-        # 2) Update (only if changed) using precomputed expected payloads
-        for handle in to_consider_update:
-            expected = expected_by_handle.get(handle)
-            actual = shopify_by_handle.get(handle)
-            if not expected or not actual:
-                continue
-            if _normalize_rest_like(expected) != _normalize_rest_like(actual):
-                upd = await self.update_product_by_handle(handle, expected)
-                results["updated"].append(upd)
-            else:
-                results["skipped"].append({"handle": handle, "reason": "no_changes"})
-
-        # 3) Delete extras
-        for handle in to_delete:
-            sp = shopify_by_handle[handle]
-            sid = sp.get('id')
-            if sid:
-                del_res = await self.delete_product_by_id(int(sid))
-                results["deleted"].append(del_res)
-
-        return results
    
-   
-    async def send_products_batch(self, products: List[ShopifyProductWrapper], batch_size: int = 2) -> List[Dict[str, Any]]:
-        """Send products to Shopify in batches"""
+    async def send_products_batch(self, products: List[ShopifyProductWrapper], batch_size: int = 10) -> List[Dict[str, Any]]:
+        """Send products to Shopify in robustly limited batches for large sets."""
         results = []
         # Ensure batch_size is a valid positive integer
         try:
@@ -978,21 +833,21 @@ class ShopifyService:
         if not batch_size or batch_size <= 0:
             batch_size = len(products) if len(products) > 0 else 1
         async with httpx.AsyncClient() as client:
+        
+        
             for i in range(0, len(products), batch_size):
                 batch = products[i:i + batch_size]
-               
                 tasks = []
                 for product in batch:
                     task = self._send_single_product(client, product)
                     tasks.append(task)
-               
                 batch_results = await asyncio.gather(*tasks, return_exceptions=True)
                 results.extend(batch_results)
-               
+
                 # Rate limiting - wait 1 second between batches
                 if i + batch_size < len(products):
                     await asyncio.sleep(1)
-       
+
         return results
 
 
@@ -1059,6 +914,24 @@ class ShopifyService:
             "    __typename key value namespace "
             "  } "
             "  price_b2b_discounted: metafield(namespace: \"custom\", key: \"Price_B2B_Discounted\") { "
+            "    __typename key value namespace "
+            "  } "
+            "  prozessorfamilie: metafield(namespace: \"custom\", key: \"Prozessorfamilie\") { "
+            "    __typename key value namespace "
+            "  } "
+            "  speicher: metafield(namespace: \"custom\", key: \"Speicher\") { "
+            "    __typename key value namespace "
+            "  } "
+            "  ram: metafield(namespace: \"custom\", key: \"RAM\") { "
+            "    __typename key value namespace "
+            "  } "
+            "  gpu: metafield(namespace: \"custom\", key: \"GPU\") { "
+            "    __typename key value namespace "
+            "  } "
+            "  prozessor: metafield(namespace: \"custom\", key: \"Prozessor\") { "
+            "    __typename key value namespace "
+            "  } "
+            "  bildschirmdiagonale: metafield(namespace: \"custom\", key: \"Bildschirmdiagonale\") { "
             "    __typename key value namespace "
             "  } "
             "  images(first: 20) { edges { node { __typename id url } } } "
@@ -1260,6 +1133,30 @@ class ShopifyService:
                     raw_value = product_node['price_b2b_discounted'].get('value')
                     metafields['Price_B2B_Discounted'] = parse_metafield_value(raw_value)
 
+                if 'ram' in product_node and product_node['ram']:
+                    raw_value = product_node['ram'].get('value')
+                    metafields['RAM'] = parse_metafield_value(raw_value)
+
+                if 'prozessor' in product_node and product_node['prozessor']:
+                    raw_value = product_node['prozessor'].get('value')
+                    metafields['Prozessor'] = parse_metafield_value(raw_value)
+
+                if 'prozessorfamilie' in product_node and product_node['prozessorfamilie']:
+                    raw_value = product_node['prozessorfamilie'].get('value')
+                    metafields['Prozessorfamilie'] = parse_metafield_value(raw_value)
+
+                if 'gpu' in product_node and product_node['gpu']:
+                    raw_value = product_node['gpu'].get('value')
+                    metafields['GPU'] = parse_metafield_value(raw_value)
+
+                if 'speicher' in product_node and product_node['speicher']:
+                    raw_value = product_node['speicher'].get('value')
+                    metafields['Speicher'] = parse_metafield_value(raw_value)
+
+                if 'bildschirmdiagonale' in product_node and product_node['bildschirmdiagonale']:
+                    raw_value = product_node['bildschirmdiagonale'].get('value')
+                    metafields['Bildschirmdiagonale'] = parse_metafield_value(raw_value)
+
                 # Also handle metafields from edges within the product node
                 for edge in (product_node.get("metafields", {}).get("edges") or []):
                     metafield = edge.get("node", {})
@@ -1312,7 +1209,6 @@ class ShopifyService:
 
    
     async def _send_single_product(self, client: httpx.AsyncClient, product: ShopifyProductWrapper ) -> Dict[str, Any]:
-        """Send a single product to Shopify"""
         try:
             response = await client.post(
                 f"{self.shop_url}/admin/api/{self.api_version}/products.json",
@@ -1320,7 +1216,7 @@ class ShopifyService:
                 json={"product": product.product.model_dump()},
                 timeout=30.0
             )
-           
+
             if response.status_code == 201:
                 response_data = response.json()
                 return {
@@ -1334,7 +1230,7 @@ class ShopifyService:
                     'status': 'error',
                     'product_id': product.product.handle,
                     'error': response.text,
-                    'status_code': response.status_code
+                    'status_code': response.status_code,
                 }
         except Exception as e:
             return {
