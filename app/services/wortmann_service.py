@@ -168,7 +168,7 @@ class WortmannService:
             no_tags = _html.unescape(no_tags)
             return _clean_text(no_tags)
 
-        """ def _normalize_diagonal(text: str) -> str:
+        def _normalize_diagonal(text: str) -> str:
             if not text:
                 return ''
             s = _strip_html(text)
@@ -179,6 +179,9 @@ class WortmannService:
                 # remove trailing .0
                 try:
                     f = float(val)
+                    # Ignore unrealistic monitor/laptop sizes < 10"
+                    if f < 10.0:
+                        return ''
                     if abs(f - int(f)) < 1e-6:
                         val = str(int(f))
                     else:
@@ -187,37 +190,7 @@ class WortmannService:
                 except Exception:
                     pass
                 return f"{val}\""
-            # Fallback: cm value, possibly with inch in parentheses
-            # Case like: 68.6 cm (27")
-            m_paren_in = re.search(r"\((\d+[\.,]?\d*)\s*\"\)", s)
-            if m_paren_in:
-                val = m_paren_in.group(1).replace(',', '.')
-                try:
-                    f = float(val)
-                    if abs(f - int(f)) < 1e-6:
-                        val = str(int(f))
-                    else:
-                        val = ("%.1f" % f).rstrip('0').rstrip('.')
-                except Exception:
-                    pass
-                return f"{val}\""
-            # Convert cm -> inch
-            m_cm = re.search(r"(\d+[\.,]?\d*)\s*cm", s, flags=re.IGNORECASE)
-            if m_cm:
-                val = m_cm.group(1).replace(',', '.')
-                try:
-                    f_cm = float(val)
-                    f_in = f_cm / 2.54
-                    # round to nearest 0.1 to keep values like 15.6
-                    f_in = round(f_in, 1)
-                    if abs(f_in - int(f_in)) < 1e-6:
-                        val_in = str(int(f_in))
-                    else:
-                        val_in = ("%.1f" % f_in).rstrip('0').rstrip('.')
-                    return f"{val_in}\""
-                except Exception:
-                    return ''
-            return '' """
+            return '' 
 
         def _extract_specs_from_html(html: str) -> Dict[str, Any]:
             if not html:
@@ -366,6 +339,12 @@ class WortmannService:
                 'EOL': to_bool_01(src.get('EOL')),
                 'Promotion': to_bool_01(src.get('Promotion')),
                 'AccessoryProducts': src.get('AccessoryProducts'),
+                'Bildschirmdiagonale': src.get('Bildschirmdiagonale') or '',
+                'Prozessor': src.get('Prozessor') or '',
+                'GPU': src.get('GPU') or '',
+                'RAM': src.get('RAM') or '',
+                'Speicher': src.get('Speicher') or '',
+                'Prozessorfamilie': src.get('Prozessorfamilie') or '',
             })
 
         category_map = {
