@@ -806,6 +806,62 @@ class ShopifyService:
             if post_resp.status_code not in (200, 201):
                 logger.warning(f"Failed creating verwandte_produkte for product {product_id}: {post_resp.status_code} - {post_resp.text}")
 
+    
+    async def _sync_metafield_by_key(self, product_id: int, key: str, desired_value: Optional[str], data_type: str) -> None:
+        """Ensure the product's metafield matches desired_value.
+        If desired_value is falsy (None/""), delete the metafield if it exists.
+        If desired_value is non-empty, upsert it.
+        """
+        async with httpx.AsyncClient() as client:
+            # 1) List existing product metafields
+            list_resp = await self._rest_call(client, 'GET', f"/admin/api/{self.api_version}/products/{product_id}/metafields.json")
+            if list_resp.status_code != 200:
+                logger.warning(f"Cannot list metafields for product {product_id}: {list_resp.status_code}")
+                return
+            metafields = (list_resp.json() or {}).get('metafields') or []
+            target = None
+            for mf in metafields:
+                if mf.get('namespace') == 'custom' and mf.get('key') == key:
+                    target = mf
+                    break
+
+            # 2) If desired empty -> delete if exists
+            if not desired_value:
+                if target and target.get('id'):
+                    del_resp = await self._rest_call(client, 'DELETE', f"/admin/api/{self.api_version}/metafields/{target['id']}.json")
+                    if del_resp.status_code not in (200, 204):
+                        logger.warning(f"Failed deleting {key} for product {product_id}: {del_resp.status_code} - {del_resp.text}")
+                return
+
+            # 3) desired non-empty -> upsert
+            if target and target.get('id'):
+                put_body = {
+                    "metafield": {
+                        "id": target['id'],
+                        "value": desired_value,
+                        "type": "json"
+                    }
+                }
+                put_resp = await self._rest_call(client, 'PUT', f"/admin/api/{self.api_version}/metafields/{target['id']}.json", json=put_body)
+                if put_resp.status_code != 200:
+                    logger.warning(f"Failed updating {key} for product {product_id}: {put_resp.status_code} - {put_resp.text}")
+                return
+
+            # Create new metafield
+            post_body = {
+                "metafield": {
+                    "namespace": "custom",
+                    "key": key,
+                    "owner_id": product_id,
+                    "owner_resource": "product",
+                    "type": "json",
+                    "value": desired_value
+                }
+            }
+            post_resp = await self._rest_call(client, 'POST', f"/admin/api/{self.api_version}/metafields.json", json=post_body)
+            if post_resp.status_code not in (200, 201):
+                logger.warning(f"Failed creating {key} for product {product_id}: {post_resp.status_code} - {post_resp.text}")
+
     async def delete_product_by_id(self, product_id: int) -> Dict[str, Any]:
         """Delete a Shopify product by its numeric Shopify ID."""
         try:
