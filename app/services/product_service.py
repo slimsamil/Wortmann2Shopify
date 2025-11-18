@@ -232,10 +232,15 @@ class ProductService:
             # Create variants for each warranty
             for warranty in filtered_warranties:
                 try:
-                    prozentsatz = warranty.get('prozentsatz', 0)
-                    minimum = warranty.get('minimum', 0)
-                    add_on = Decimal(str(base_price)) * prozentsatz / Decimal('100')
-                    price = base_price + float(add_on)
+                    prozentsatz_raw = warranty.get('prozentsatz', 0) or 0
+                    minimum = float(warranty.get('minimum', 0) or 0)
+                    base_price_dec = Decimal(str(base_price))
+                    prozentsatz = Decimal(str(prozentsatz_raw))
+                    if prozentsatz == 0:
+                        add_on = minimum
+                    else:
+                        add_on = float(base_price_dec * prozentsatz / Decimal('100'))
+                    price = base_price + add_on
                     sku_ext = f"G{warranty.get('id')}"
                     warranty_name = warranty.get('name', '')
                     months = warranty.get('monate', '')
