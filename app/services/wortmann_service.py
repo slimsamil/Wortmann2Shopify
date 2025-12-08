@@ -306,6 +306,19 @@ class WortmannService:
             # Return in DD.MM.YYYY format
             return f"{day}.{month}.{year}"
 
+        def calculate_b2c_price(price_b2c_inclvat, price_b2b_regular):
+            """
+            Returns a valid B2C incl. VAT price.
+            If the B2C price is missing, empty or zero, it is calculated from B2B_Regular.
+            Formula: B2B * 1.25 (profit margin) * 1.19 (VAT)
+            """
+            if price_b2c_inclvat and price_b2c_inclvat > 0:
+                return price_b2c_inclvat
+
+            if price_b2b_regular:
+                return price_b2b_regular * 1.25 * 1.19
+
+            return None
 
         normalized: List[Dict[str, Any]] = []
         for src in items:
@@ -314,6 +327,12 @@ class WortmannService:
             if not title:
                 continue
                 
+            # Parse prices first
+            price_b2b_regular = parse_float(src.get('Price_B2B_Regular'))
+            price_b2c_inclvat = parse_float(src.get('Price_B2C_inclVAT'))
+
+            # Use helper function
+            price_b2c_inclvat = calculate_b2c_price(price_b2c_inclvat, price_b2b_regular)
 
             normalized.append({
                 'ProductId': (src.get('ProductId') or '').strip(),
@@ -324,9 +343,9 @@ class WortmannService:
                 'Category': src.get('CategoryName_1031_German') or '',
                 'CategoryPath': src.get('CategoryPath_1031_German') or '',
                 'Warranty': src.get('WarrantyDescription_1031_German') or 'Standard',
-                'Price_B2B_Regular': parse_float(src.get('Price_B2B_Regular')),
+                'Price_B2B_Regular': price_b2b_regular,
                 'Price_B2B_Discounted': parse_float(src.get('Price_B2B_Discounted')),
-                'Price_B2C_inclVAT': parse_float(src.get('Price_B2C_inclVAT')),
+                'Price_B2C_inclVAT': price_b2c_inclvat,
                 'Currency': src.get('Price_B2X_Currency') or 'EUR',
                 'VATRate': parse_float(src.get('Price_B2C_VATRate')),
                 'Stock': parse_int(src.get('Stock')),

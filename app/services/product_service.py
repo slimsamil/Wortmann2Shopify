@@ -178,7 +178,7 @@ class ProductService:
         logger.debug(f"Creating Shopify product for {product_id}")
         
         try:
-            base_price = float(product.get('Price_B2C_inclVAT') or product.get('Price_B2B_Regular') or 0)
+            base_price = float(product.get('Price_B2C_inclVAT'))
             qty = int(product.get('Stock') or 0)
             weight = float(product.get('GrossWeight') or product.get('NetWeight') or 0)
             handle = f"prod-{product_id}"
