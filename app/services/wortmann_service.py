@@ -313,12 +313,13 @@ class WortmannService:
             Formula: B2B * 1.25 (profit margin) * 1.19 (VAT)
             """
             if price_b2c_inclvat and price_b2c_inclvat > 0:
-                price = price_b2c_inclvat * 0.9
-                return price
+                #price = price_b2c_inclvat * 0.9
+                #return price
+                return price_b2c_inclvat
 
             if price_b2b_regular:
                 price = price_b2b_regular * 1.25 * 1.19
-                price = price * 0.9
+                #price = price * 0.9
                 return price 
 
             return None
