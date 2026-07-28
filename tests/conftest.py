@@ -47,6 +47,29 @@ class _FakeShopify:
     async def fetch_all_product_handles_bulk(self):
         return [{"id": "gid://shopify/Product/111", "handle": "prod-123"}]
 
+    async def fetch_all_products_bulk_full(self):
+        return [
+            {
+                "id": 111,
+                "handle": "prod-123",
+                "title": "T",
+                "vendor": "Wortmann",
+                "product_type": "Notebooks",
+                # GraphQL shape: list, here deliberately messy
+                "tags": [" no-sync ", "", "wortmann"],
+                "variants": [{"price": "10.00", "option1": "Std", "weight": 1.2}],
+                "images": [{"src": "https://cdn.example/1.jpg"}],
+                "metafields": {"Inventarbestand": 5},
+            },
+            {
+                # no tags at all
+                "id": 222,
+                "handle": "prod-456",
+                "title": "T2",
+                "variants": [{"price": "20.00"}],
+            },
+        ]
+
     async def delete_product_by_id(self, sid: int):
         return {"status": "success"}
 

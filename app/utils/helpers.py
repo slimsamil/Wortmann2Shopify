@@ -1,5 +1,5 @@
 import base64
-from typing import Any, Optional
+from typing import Any, List, Optional
 
 
 def to_base64(input_data: Any) -> str:
@@ -40,6 +40,30 @@ def gid_to_numeric_id(gid: Optional[str]) -> Optional[int]:
         return int(gid.rsplit('/', 1)[-1])
     except Exception:
         return None
+
+def normalize_tags(value: Any) -> List[str]:
+    """Normalize Shopify product tags to a list of trimmed, non-empty strings.
+
+    Shopify returns tags as a comma-separated string (REST) or as a list (GraphQL).
+    Both shapes are accepted; anything else yields an empty list.
+    """
+    if not value:
+        return []
+    if isinstance(value, str):
+        raw = value.split(',')
+    elif isinstance(value, (list, tuple)):
+        raw = value
+    else:
+        return []
+
+    tags: List[str] = []
+    for tag in raw:
+        if tag is None:
+            continue
+        tag = str(tag).strip()
+        if tag:
+            tags.append(tag)
+    return tags
 
 def parse_metafield_value(value: Any) -> Any:
     """Parse metafield value which may be a JSON string or already structured.
