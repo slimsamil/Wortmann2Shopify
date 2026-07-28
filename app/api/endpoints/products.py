@@ -4,6 +4,7 @@ from app.services.product_service import ProductService
 from app.services.shopify_service import ShopifyService
 from app.api.deps import get_database_service, get_product_service, get_shopify_service
 from app.models.product import WorkflowRequest, WorkflowResponse, SyncProductsRequest, DeleteProductsRequest
+from app.utils.helpers import normalize_tags
 from typing import List, Dict, Any
 import time
 import logging
@@ -320,6 +321,9 @@ async def export_shopify_products(
                 category = product.get('product_type') or ""
                 category_path = category if category else ""
 
+                # Shopify tags (e.g. 'no-sync' marks manually created products)
+                tags = normalize_tags(product.get('tags'))
+
                 variants = []
                 if product.get('variants'):
                     if isinstance(product['variants'], list):
@@ -423,6 +427,7 @@ async def export_shopify_products(
                     "Prozessorfamilie": prozessorfamilie,
                     "Bildschirmdiagonale": bildschirmdiagonale,
                     "Speicher": speicher,
+                    "Tags": tags,
                 }
                 
                 standardized_products.append(standardized_product)

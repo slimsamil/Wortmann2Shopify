@@ -503,7 +503,8 @@ curl -X GET http://localhost:8000/api/v1/products/export-shopify-products
     "EOL": false,
     "Promotion": false,
     "AccessoryProducts": "eu1009806|eu1009807",
-    "Garantiegruppe": 1
+    "Garantiegruppe": 1,
+    "Tags": ["no-sync", "wortmann"]
   }
 ]
 ```
